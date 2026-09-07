@@ -1,5 +1,5 @@
 # =========================================================
-#  SCANNING ENGINES – Zero‑rated & Active
+#  SCANNING ENGINES – Zero‑rated & Active (FIXED)
 # =========================================================
 
 # ─── Check Functions ──────────────────────────────────────
@@ -83,7 +83,7 @@ check_host_active() {
         local port=443
         [ "$proto" = "http" ] && port=80
         local http_code
-        http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout "$timeout" --max-time "$timeout" --resolve "$host:$port:$ip" "$proto://$host" 2>/dev/null)
+        http_code=$(curl -s -o /dev/null -w "%{http_code}" -I --connect-timeout "$timeout" --max-time "$timeout" --resolve "$host:$port:$ip" "$proto://$host" 2>/dev/null)
         [ -n "$http_code" ] && [ "$http_code" != "000" ] && { code="$http_code"; break; }
     done
 
@@ -96,7 +96,6 @@ check_host_active() {
 
 # ─── Zero‑Rated Engine ────────────────────────────────────
 run_scan_zero() {
-    # Create directories if missing
     mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
 
     local TARGET_FILE="$1"
@@ -156,7 +155,6 @@ run_scan_zero() {
     local tmp_dir="$RAT_CONFIG/tmp_batch"
     mkdir -p "$tmp_dir"
 
-    # Build batches
     local batches=()
     if [ "$BATCH_ENABLED" = "n" ] || [ "$BATCH_ENABLED" = "N" ]; then
         batches=("$TARGET_FILE")
@@ -199,8 +197,8 @@ run_scan_zero() {
                 esac
             done
             clear_line
-            printf "Progress: [%s]⚡[%d/%d⚙️][%d/%d🌐] | 🟢ZR:%d | 🔥BUGS:%d | 🚫BLK:%d | 💰BIL:%d" \
-                "R@-------" "$batch_done" "$batch_size" "$total_done" "$TOTAL" "$zc" "$buc" "$bc" "$bic"
+            printf "Progress: [R@-------]⚡[%d/%d⚙️][%d/%d🌐] | 🟢ZR:%d | 🔥BUGS:%d | 🚫BLK:%d | 💰BIL:%d" \
+                "$batch_done" "$batch_size" "$total_done" "$TOTAL" "$zc" "$buc" "$bc" "$bic"
         done < "$tmp_res"
         rm -f "$tmp_res"
 
@@ -212,10 +210,10 @@ run_scan_zero() {
             local code="${st#*|}"
             st="${st%|*}"
             case "$st" in
-                ZERO_RATED) echo "$GREEN$host -> ZERO_RATED ($code)${NC}" ;;
-                BILLED)     echo "$YELLOW$host -> BILLED ($code)${NC}" ;;
-                BUG)        echo "$RED$host -> BUG ($code)${NC}" ;;
-                *)          echo "$RED$host -> BLOCKED ($code)${NC}" ;;
+                ZERO_RATED) echo "$GREEN$host -> ZERO_RATED (HTTP:$code)${NC}" ;;
+                BILLED)     echo "$YELLOW$host -> BILLED (HTTP:$code)${NC}" ;;
+                BUG)        echo "$RED$host -> BUG (HTTP:$code)${NC}" ;;
+                *)          echo "$RED$host -> BLOCKED (HTTP:$code)${NC}" ;;
             esac
             echo ""
             echo "$st $host" >> "$detail_log"
@@ -223,13 +221,15 @@ run_scan_zero() {
             sleep 0.05
         done
 
+        # Counters update
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
+            st=$(echo "$st" | tr -d ' ') # trim spaces
             case "$st" in
                 ZERO_RATED) zero_rated=$((zero_rated+1)) ;;
-                BILLED) billed=$((billed+1)) ;;
-                BUG) bugs=$((bugs+1)) ;;
-                *) blocked=$((blocked+1)) ;;
+                BILLED)     billed=$((billed+1)) ;;
+                BUG)        bugs=$((bugs+1)) ;;
+                *)          blocked=$((blocked+1)) ;;
             esac
         done
         total_done=$((total_done + batch_size))
@@ -306,7 +306,6 @@ run_scan_zero() {
 
 # ─── Active Engine ────────────────────────────────────────
 run_scan_active() {
-    # Create directories if missing
     mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
 
     local TARGET_FILE="$1"
@@ -393,8 +392,8 @@ run_scan_active() {
                 if [ "$st" = "LIVE" ]; then lc=$((lc+1)); else dc=$((dc+1)); fi
             done
             clear_line
-            printf "Progress: [%s]⚡[%d/%d⚙️][%d/%d🌐] | 🟢LIVE:%d | ❌DEAD:%d" \
-                "R@-------" "$batch_done" "$batch_size" "$total_done" "$TOTAL" "$lc" "$dc"
+            printf "Progress: [R@-------]⚡[%d/%d⚙️][%d/%d🌐] | 🟢LIVE:%d | ❌DEAD:%d" \
+                "$batch_done" "$batch_size" "$total_done" "$TOTAL" "$lc" "$dc"
         done < "$tmp_res"
         rm -f "$tmp_res"
 
@@ -406,7 +405,7 @@ run_scan_active() {
             local code="${st#*|}"
             st="${st%|*}"
             if [ "$st" = "LIVE" ]; then
-                echo "$GREEN$host -> LIVE ($code)${NC}"
+                echo "$GREEN$host -> LIVE (HTTP:$code)${NC}"
                 echo "LIVE $host" >> "$detail_log"
                 echo "[LIVE] $host" >> "$full_log"
             else
@@ -420,6 +419,7 @@ run_scan_active() {
 
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
+            st=$(echo "$st" | tr -d ' ')
             if [ "$st" = "LIVE" ]; then
                 live=$((live+1))
             else
