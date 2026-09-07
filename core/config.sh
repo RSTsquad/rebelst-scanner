@@ -17,7 +17,7 @@ SCANNER_PIN="083312"
 RAT_WEB="https://rst-freenet-hub.base44.app"
 
 # ─── UPDATE URL (change YOUR_USERNAME) ──────────────────
-GITHUB_RAW="https://raw.githubusercontent.com/YOUR_USERNAME/rebelst-scanner/main"
+GITHUB_RAW="https://raw.githubusercontent.com/RSTsquad/rebelst-scanner/main"
 
 # ─── Colours ──────────────────────────────────────────────
 RED=$(printf '\033[0;31m')
