@@ -410,8 +410,4 @@ start_execution() {
         run_scan_active "$TARGET_FILE" "$TOTAL_HOSTS" "$timeout" "$final_batch_size" "$CARRIER" "$WORK_DIR" "$file_tag" "$threads" "$deadlock_choice" "$dns_choice" "$batch_enabled" "$scan_mode"
     fi
 
-    # This will only run if scanning completes without error
-    echo ""
-    echo "$CYAN[+] Scan finished. Press ENTER to return to hub.$NC"
-    read
 }
