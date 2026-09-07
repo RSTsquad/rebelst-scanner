@@ -122,3 +122,12 @@ command_hub() {
         esac
     done
 }
+
+# ─── Main Menu ────────────────────────────────────────────
+main_menu() {
+    if [ ! -f "$RAT_DIR/rat.sh" ]; then
+        echo "$RED[!] Tool not installed properly. Run install again.$NC"
+        exit 1
+    fi
+    scanner_login
+}
