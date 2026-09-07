@@ -96,6 +96,9 @@ check_host_active() {
 
 # ─── Zero‑Rated Engine ────────────────────────────────────
 run_scan_zero() {
+    # Create directories if missing
+    mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
+
     local TARGET_FILE="$1"
     local TOTAL="$2"
     local TIMEOUT="$3"
@@ -196,7 +199,7 @@ run_scan_zero() {
                 esac
             done
             clear_line
-            printf "Progress: [%s]⚡[%d/%d⚙️][%d/%d🌐] | 🟢 0RATED:%d | 🔥BUGS:%d |" \
+            printf "Progress: [%s]⚡[%d/%d⚙️][%d/%d🌐] | 🟢ZR:%d | 🔥BUGS:%d | 🚫BLK:%d | 💰BIL:%d" \
                 "R@-------" "$batch_done" "$batch_size" "$total_done" "$TOTAL" "$zc" "$buc" "$bc" "$bic"
         done < "$tmp_res"
         rm -f "$tmp_res"
@@ -210,14 +213,14 @@ run_scan_zero() {
             st="${st%|*}"
             case "$st" in
                 ZERO_RATED) echo "$GREEN$host -> ZERO_RATED ($code)${NC}" ;;
-                BILLED)     echo "$RED$host -> BILLED ($code)${NC}" ;;
+                BILLED)     echo "$YELLOW$host -> BILLED ($code)${NC}" ;;
                 BUG)        echo "$RED$host -> BUG ($code)${NC}" ;;
                 *)          echo "$RED$host -> BLOCKED ($code)${NC}" ;;
             esac
             echo ""
             echo "$st $host" >> "$detail_log"
             echo "[$st] $host" >> "$full_log"
-            sleep 0.09
+            sleep 0.05
         done
 
         for entry in "${results[@]}"; do
@@ -303,6 +306,9 @@ run_scan_zero() {
 
 # ─── Active Engine ────────────────────────────────────────
 run_scan_active() {
+    # Create directories if missing
+    mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
+
     local TARGET_FILE="$1"
     local TOTAL="$2"
     local TIMEOUT="$3"
