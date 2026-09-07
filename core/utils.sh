@@ -2,20 +2,41 @@
 #  UTILITIES – Device ID, V‑KEY, Install, Update, State
 # =========================================================
 
-# ─── Device ID ────────────────────────────────────────────
+# ─── Device ID (persistent) ──────────────────────────────
 get_device_id() {
+    # If file exists, just read it
     if [ -f "$RAT_DEV_FILE" ]; then
         cat "$RAT_DEV_FILE"
-    else
-        echo "UNKNOWN"
+        return
     fi
+
+    # Otherwise, generate a new one
+    local DEV_ID=""
+
+    # 1. Try Android serial
+    DEV_ID=$(getprop ro.serialno 2>/dev/null | head -c 16)
+    if [ -z "$DEV_ID" ] || [ "$DEV_ID" = "unknown" ]; then
+        # 2. Try boot ID
+        DEV_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '-' | head -c 16)
+    fi
+    if [ -z "$DEV_ID" ]; then
+        # 3. Fallback: hash of directory + time
+        DEV_ID=$(echo "$RAT_DIR$(date +%s)" | sha256sum | cut -c1-16)
+    fi
+
+    # Save it
+    mkdir -p "$(dirname "$RAT_DEV_FILE")"
+    echo "$DEV_ID" > "$RAT_DEV_FILE"
+    chmod 600 "$RAT_DEV_FILE"
+
+    echo "$DEV_ID"
 }
 
 # ─── V‑KEY Verification ──────────────────────────────────
 verify_vkey() {
     local VKEY="$1"
     local DEVICE_ID
-    DEVICE_ID=$(get_device_id)
+    DEVICE_ID=$(get_device_id)   # Now it will create if missing
     local PREFIX KEY_DEV_HASH KEY_EXPIRY KEY_CK
     PREFIX=$(echo "$VKEY" | cut -d'-' -f1)
     KEY_DEV_HASH=$(echo "$VKEY" | cut -d'-' -f2)
@@ -39,6 +60,8 @@ verify_vkey() {
     echo "$KEY_EXPIRY"
     return 0
 }
+
+# ... the rest of your utils.sh (install_rat, update_tool, detect_carrier, etc.) remains the same ...
 
 # ─── Installation ─────────────────────────────────────────
 install_rat() {
