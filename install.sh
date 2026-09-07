@@ -3,7 +3,7 @@
 #  R@t Scanner – One‑Click Installer
 # =========================================================
 
-REPO="https://raw.githubusercontent.com/YOUR_USERNAME/rebelst-scanner/main"
+REPO="https://raw.githubusercontent.com/RSTsquad/rebelst-scanner/main"
 
 echo -e "\033[1;36m[+] Installing R@t Scanner...\033[0m"
 mkdir -p ~/R@t/core
