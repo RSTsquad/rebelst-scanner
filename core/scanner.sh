@@ -1,6 +1,13 @@
 # =========================================================
-#  SCANNING ENGINES – Zero‑rated & Active (FIXED)
+#  SCANNING ENGINES – Zero‑rated & Active (FINAL FIXED)
 # =========================================================
+
+# ─── Animation Frames ─────────────────────────────────────
+ANIM_FRAMES=("-R@-------" "--R@------" "---R@-----" "----R@----" "-----R@---" "------R@--" "-------R@-" "--------R@" "-------R@-" "------R@--" "-----R@---" "----R@----" "---R@-----" "--R@------" "-R@-------")
+ANIM_LEN=${#ANIM_FRAMES[@]}
+
+# ─── Helpers ──────────────────────────────────────────────
+clear_line() { printf "\r\033[K"; }
 
 # ─── Check Functions ──────────────────────────────────────
 
@@ -123,6 +130,7 @@ run_scan_zero() {
     local total_scanned=$START_POS
     local start_time
     start_time=$(date +%s)
+    local anim_pos=0
 
     local detail_log="$RAT_LOGS/last_scan_detail.log"
     local full_log="$RAT_LOGS/last_scan.log"
@@ -137,10 +145,6 @@ run_scan_zero() {
     export TOTAL
     export detail_log
     export full_log
-    export zero_rated
-    export blocked
-    export billed
-    export bugs
 
     local PAUSED=0
     trap 'PAUSED=1; echo ""; echo "$YELLOW [!] Scan paused by user/signal. Saving state...$NC"; STATE_FILE=$(save_scan_state); echo "$GREEN [+] State saved to $STATE_FILE.$NC"; show_next_prompt; return' INT TERM
@@ -168,6 +172,7 @@ run_scan_zero() {
     local num_batches=${#batches[@]}
     local batch_idx=0
     local total_done=0
+    local current_batch_size=0
 
     for batch_file in "${batches[@]}"; do
         [ $PAUSED -eq 1 ] && break
@@ -176,9 +181,11 @@ run_scan_zero() {
         batch_hosts=$(cat "$batch_file" | grep -v '^$')
         [ -z "$batch_hosts" ] && continue
         local batch_size=$(echo "$batch_hosts" | wc -l)
+        current_batch_size=$batch_size
         local results=()
         local batch_done=0
 
+        # Phase 1: test the whole batch, update progress bar with animation
         local tmp_res="$RAT_CONFIG/tmp_batch_res"
         echo "$batch_hosts" | xargs -P "$THREADS" -I {} bash -c 'r=$(check_host_zero "{}" "$TIMEOUT" "$DNS_MODE" "$SCAN_MODE"); echo "$r {}"' > "$tmp_res" 2>/dev/null
 
@@ -186,27 +193,39 @@ run_scan_zero() {
             [ -z "$host" ] && continue
             results+=("$result|$host")
             batch_done=$((batch_done + 1))
-            local zc=0; local bc=0; local bic=0; local buc=0
-            for entry in "${results[@]}"; do
-                local st="${entry%|*}"
-                case "$st" in
-                    ZERO_RATED) zc=$((zc+1)) ;;
-                    BILLED) bic=$((bic+1)) ;;
-                    BUG) buc=$((buc+1)) ;;
-                    *) bc=$((bc+1)) ;;
-                esac
-            done
+            # Update animation
+            anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
+            local frame="${ANIM_FRAMES[anim_pos]}"
+            # Calculate elapsed time for ETA
+            local elapsed_sec=$(( $(date +%s) - start_time ))
+            local elapsed_min=$((elapsed_sec / 60))
+            local elapsed_sec_rem=$((elapsed_sec % 60))
+            local elapsed_str=$(printf "%02dm:%02ds" $elapsed_min $elapsed_sec_rem)
+            local eta_str="Calculating..."
+            if [ $total_done -gt 0 ] && [ $elapsed_sec -gt 5 ]; then
+                local eta_sec=$(( (TOTAL - total_done) * elapsed_sec / total_done ))
+                local eta_min=$((eta_sec / 60))
+                local eta_sec_rem=$((eta_sec % 60))
+                eta_str=$(printf "%02dm:%02ds" $eta_min $eta_sec_rem)
+            fi
+            # Progress bar: show only batch progress and total scanned, counters stay 0
             clear_line
-            printf "Progress: [R@-------]⚡[%d/%d⚙️][%d/%d🌐] | 🟢ZR:%d | 🔥BUGS:%d | 🚫BLK:%d | 💰BIL:%d" \
-                "$batch_done" "$batch_size" "$total_done" "$TOTAL" "$zc" "$buc" "$bc" "$bic"
+            printf "[-%s-]⚡ %d/%d(⚙️) | 🌐%d/%d | 🟢 0Rated:0 | 🔥Bugs:0" \
+                "$frame" "$batch_done" "$batch_size" "$total_done" "$TOTAL"
+            # Extra line for elapsed and ETA (we'll print it below the main bar)
+            # We'll use a second line for that
+            printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$elapsed_str" "$eta_str"
+            # Move cursor back up one line to overwrite the extra line next time
+            printf "\033[1A"
         done < "$tmp_res"
         rm -f "$tmp_res"
 
+        # Phase 2: clear the progress bar and reveal results crawl-style
         clear_line
         printf "\n"
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
-            local host="${entry#*|}"
+            local host="${entry##*|}"  # get everything after last pipe
             local code="${st#*|}"
             st="${st%|*}"
             case "$st" in
@@ -221,10 +240,10 @@ run_scan_zero() {
             sleep 0.05
         done
 
-        # Counters update
+        # Update counters after results are printed
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
-            st=$(echo "$st" | tr -d ' ') # trim spaces
+            st="${st%|*}"  # get the category without code
             case "$st" in
                 ZERO_RATED) zero_rated=$((zero_rated+1)) ;;
                 BILLED)     billed=$((billed+1)) ;;
@@ -327,6 +346,7 @@ run_scan_active() {
     local total_done=0
     local start_time
     start_time=$(date +%s)
+    local anim_pos=0
     local detail_log="$RAT_LOGS/last_scan_active_detail.log"
     local full_log="$RAT_LOGS/last_scan_active.log"
     > "$detail_log"
@@ -340,8 +360,6 @@ run_scan_active() {
     export TOTAL
     export detail_log
     export full_log
-    export live
-    export dead
 
     local PAUSED=0
     trap 'PAUSED=1; echo ""; echo "$YELLOW [!] Scan paused by user. Saving state...$NC"; show_next_prompt; return' INT TERM
@@ -368,6 +386,7 @@ run_scan_active() {
 
     local num_batches=${#batches[@]}
     local batch_idx=0
+    local current_batch_size=0
 
     for batch_file in "${batches[@]}"; do
         [ $PAUSED -eq 1 ] && break
@@ -376,6 +395,7 @@ run_scan_active() {
         batch_hosts=$(cat "$batch_file" | grep -v '^$')
         [ -z "$batch_hosts" ] && continue
         local batch_size=$(echo "$batch_hosts" | wc -l)
+        current_batch_size=$batch_size
         local results=()
         local batch_done=0
 
@@ -386,14 +406,24 @@ run_scan_active() {
             [ -z "$host" ] && continue
             results+=("$result|$host")
             batch_done=$((batch_done + 1))
-            local lc=0; local dc=0
-            for entry in "${results[@]}"; do
-                local st="${entry%|*}"
-                if [ "$st" = "LIVE" ]; then lc=$((lc+1)); else dc=$((dc+1)); fi
-            done
+            anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
+            local frame="${ANIM_FRAMES[anim_pos]}"
+            local elapsed_sec=$(( $(date +%s) - start_time ))
+            local elapsed_min=$((elapsed_sec / 60))
+            local elapsed_sec_rem=$((elapsed_sec % 60))
+            local elapsed_str=$(printf "%02dm:%02ds" $elapsed_min $elapsed_sec_rem)
+            local eta_str="Calculating..."
+            if [ $total_done -gt 0 ] && [ $elapsed_sec -gt 5 ]; then
+                local eta_sec=$(( (TOTAL - total_done) * elapsed_sec / total_done ))
+                local eta_min=$((eta_sec / 60))
+                local eta_sec_rem=$((eta_sec % 60))
+                eta_str=$(printf "%02dm:%02ds" $eta_min $eta_sec_rem)
+            fi
             clear_line
-            printf "Progress: [R@-------]⚡[%d/%d⚙️][%d/%d🌐] | 🟢LIVE:%d | ❌DEAD:%d" \
-                "$batch_done" "$batch_size" "$total_done" "$TOTAL" "$lc" "$dc"
+            printf "[-%s-]⚡ %d/%d(⚙️) | 🌐%d/%d | 🟢 0Rated:0 | 🔥Bugs:0" \
+                "$frame" "$batch_done" "$batch_size" "$total_done" "$TOTAL"
+            printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$elapsed_str" "$eta_str"
+            printf "\033[1A"
         done < "$tmp_res"
         rm -f "$tmp_res"
 
@@ -401,7 +431,7 @@ run_scan_active() {
         printf "\n"
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
-            local host="${entry#*|}"
+            local host="${entry##*|}"
             local code="${st#*|}"
             st="${st%|*}"
             if [ "$st" = "LIVE" ]; then
@@ -419,7 +449,7 @@ run_scan_active() {
 
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
-            st=$(echo "$st" | tr -d ' ')
+            st="${st%|*}"
             if [ "$st" = "LIVE" ]; then
                 live=$((live+1))
             else
