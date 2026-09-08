@@ -196,7 +196,7 @@ run_scan_zero() {
             anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
             local frame="${ANIM_FRAMES[anim_pos]}"
             # Build progress bar with cyan R@ and plain dashes
-            local bar="[ ${CYAN}R@${NC}${frame//R@/} ]"  # Remove the R@ from frame and put coloured R@
+            local bar="[${frame//R@/} ]"  # Remove the R@ from frame and put coloured R@
             # Actually frame has R@ in it; we'll replace it with cyan R@
             local bar_display="[ ${CYAN}R@${NC}${frame#R@} ]"
             local elapsed_sec=$(( $(date +%s) - start_time ))
