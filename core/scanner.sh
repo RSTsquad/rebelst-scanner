@@ -1,14 +1,10 @@
 # =========================================================
-#  SCANNING ENGINES – FINAL WITH COLOURS & FIXES
+#  SCANNING ENGINES – CLEAN PROGRESS BAR
 # =========================================================
 
 # ─── Animation Frames ─────────────────────────────────────
 ANIM_FRAMES=("-R@-------" "--R@------" "---R@-----" "----R@----" "-----R@---" "------R@--" "-------R@-" "--------R@" "-------R@-" "------R@--" "-----R@---" "----R@----" "---R@-----" "--R@------" "-R@-------")
 ANIM_LEN=${#ANIM_FRAMES[@]}
-
-# ─── Road Colours ─────────────────────────────────────────
-ROAD_COLORS=("\033[44m" "\033[43m" "\033[44m" "\033[43m") # blue, yellow
-ROAD_LEN=${#ROAD_COLORS[@]}
 
 # ─── Helpers ──────────────────────────────────────────────
 clear_line() { printf "\r\033[K"; }
@@ -135,7 +131,6 @@ run_scan_zero() {
     local start_time
     start_time=$(date +%s)
     local anim_pos=0
-    local road_color_idx=0
 
     local detail_log="$RAT_LOGS/last_scan_detail.log"
     local full_log="$RAT_LOGS/last_scan.log"
@@ -190,6 +185,7 @@ run_scan_zero() {
         local results=()
         local batch_done=0
 
+        # Phase 1: test the whole batch, update progress bar (counters stay at current accumulated values)
         local tmp_res="$RAT_CONFIG/tmp_batch_res"
         echo "$batch_hosts" | xargs -P "$THREADS" -I {} bash -c 'r=$(check_host_zero "{}" "$TIMEOUT" "$DNS_MODE" "$SCAN_MODE"); echo "$r {}"' > "$tmp_res" 2>/dev/null
 
@@ -198,11 +194,11 @@ run_scan_zero() {
             results+=("$result|$host")
             batch_done=$((batch_done + 1))
             anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
-            road_color_idx=$(( (road_color_idx + 1) % ROAD_LEN ))
             local frame="${ANIM_FRAMES[anim_pos]}"
-            local road_color="${ROAD_COLORS[road_color_idx]}"
-            # Colour the frame: R@ in cyan, dashes in road_color
-            local coloured_frame=$(echo "$frame" | sed "s/R@/${CYAN}R@${NC}/g" | sed "s/-/${road_color}-${NC}/g")
+            # Build progress bar with cyan R@ and plain dashes
+            local bar="[ ${CYAN}R@${NC}${frame//R@/} ]"  # Remove the R@ from frame and put coloured R@
+            # Actually frame has R@ in it; we'll replace it with cyan R@
+            local bar_display="[ ${CYAN}R@${NC}${frame#R@} ]"
             local elapsed_sec=$(( $(date +%s) - start_time ))
             local elapsed_min=$((elapsed_sec / 60))
             local elapsed_sec_rem=$((elapsed_sec % 60))
@@ -215,15 +211,14 @@ run_scan_zero() {
                 eta_str=$(printf "%02dm:%02ds" $eta_min $eta_sec_rem)
             fi
             clear_line
-            # Print the coloured frame and counters (counters show current accumulated counts)
-            printf "%s" "$coloured_frame"
-            printf " $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:%d$NC | $RED🔥Bugs:%d$NC" \
-                "$batch_done" "$batch_size" "$total_done" "$TOTAL" "$zero_rated" "$bugs"
+            printf "%s $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$zero_rated$NC | $RED🔥Bugs:$bugs$NC" \
+                "$bar_display" "$batch_done" "$batch_size" "$total_done" "$TOTAL"
             printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$elapsed_str" "$eta_str"
             printf "\033[1A"
         done < "$tmp_res"
         rm -f "$tmp_res"
 
+        # Phase 2: clear progress bar and reveal results crawl-style
         clear_line
         printf "\n"
         for entry in "${results[@]}"; do
@@ -244,6 +239,7 @@ run_scan_zero() {
             sleep 0.02
         done
 
+        # Update counters after results are printed
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
             st="${st%|*}"
@@ -260,6 +256,7 @@ run_scan_zero() {
             rm -f "$batch_file"
         fi
 
+        # Deadlock recovery
         is_last=$([ $batch_idx -eq $num_batches ] && echo "yes" || echo "no")
         if [ "$DEADLOCK_MODE" = "2" ]; then
             if ! curl -s --connect-timeout 3 https://google.com >/dev/null 2>&1; then
@@ -356,7 +353,6 @@ run_scan_active() {
     local start_time
     start_time=$(date +%s)
     local anim_pos=0
-    local road_color_idx=0
     local detail_log="$RAT_LOGS/last_scan_active_detail.log"
     local full_log="$RAT_LOGS/last_scan_active.log"
     > "$detail_log"
@@ -415,10 +411,8 @@ run_scan_active() {
             results+=("$result|$host")
             batch_done=$((batch_done + 1))
             anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
-            road_color_idx=$(( (road_color_idx + 1) % ROAD_LEN ))
             local frame="${ANIM_FRAMES[anim_pos]}"
-            local road_color="${ROAD_COLORS[road_color_idx]}"
-            local coloured_frame=$(echo "$frame" | sed "s/R@/${CYAN}R@${NC}/g" | sed "s/-/${road_color}-${NC}/g")
+            local bar_display="[ ${CYAN}R@${NC}${frame#R@} ]"
             local elapsed_sec=$(( $(date +%s) - start_time ))
             local elapsed_min=$((elapsed_sec / 60))
             local elapsed_sec_rem=$((elapsed_sec % 60))
@@ -431,9 +425,8 @@ run_scan_active() {
                 eta_str=$(printf "%02dm:%02ds" $eta_min $eta_sec_rem)
             fi
             clear_line
-            printf "%s" "$coloured_frame"
-            printf " $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:%d$NC | $RED🔥Bugs:%d$NC" \
-                "$batch_done" "$batch_size" "$total_done" "$TOTAL" "$live" "$dead"
+            printf "%s $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$live$NC | $RED❌ DEAD:$dead$NC" \
+                "$bar_display" "$batch_done" "$batch_size" "$total_done" "$TOTAL"
             printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$elapsed_str" "$eta_str"
             printf "\033[1A"
         done < "$tmp_res"
@@ -501,7 +494,7 @@ run_scan_active() {
 
     echo ""
     echo "$CYAN ╔═════════════════════════════════════════════════════════════╗$NC"
-    echo "$GREEN║            SCAN COMPLETED SUCCESSFULLY                                 ║$NC"
+    echo "$GREEN║ SCAN COMPLETED SUCCESSFULLY                                 ║$NC"
     echo "$CYAN ╠═════════════════════════════════════════════════════════════╣$NC"
     echo "  NETWORK CARRIER     : $CARRIER"
     echo "  TARGET LIST         : $(basename "$TARGET_FILE")"
