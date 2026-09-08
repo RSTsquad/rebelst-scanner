@@ -1,10 +1,6 @@
 # =========================================================
-#  LOGIN & COMMAND HUB – FINAL FIXED
+#  LOGIN & COMMAND HUB – NO ERROR TRAP
 # =========================================================
-
-# ─── Error Handling ──────────────────────────────────────
-set -E
-trap 'echo -e "\n${RED}[!] Error on line $LINENO${NC}"; read -p "Press ENTER to continue..."' ERR
 
 # ─── Scanner Login ────────────────────────────────────────
 scanner_login() {
@@ -136,9 +132,8 @@ main_menu() {
     scanner_login
 }
 
-# ─── START EXECUTION – FIXED ─────────────────────────────
+# ─── START EXECUTION ─────────────────────────────────────
 start_execution() {
-    # Do NOT clear screen – stay under command hub
     echo ""
     echo "$CYAN ╔═•Target directory where to look & save files•═══════$NC"
     echo "${MAGENTA}│1 R@t folder (Default)${NC}"
@@ -240,17 +235,14 @@ start_execution() {
     elif [ -f "$target_input" ]; then
         TARGET_FILE="$target_input"
     elif echo "$target_input" | grep -q ' '; then
-        # Multiple hosts separated by space
         TARGET_FILE="$WORK_DIR/temp_targets.txt"
         for host in $target_input; do
             echo "$host" >> "$TARGET_FILE"
         done
     elif echo "$target_input" | grep -q '\.'; then
-        # Single host (contains a dot)
         TARGET_FILE="$WORK_DIR/temp_targets.txt"
         echo "$target_input" > "$TARGET_FILE"
     else
-        # Auto-detect .txt files
         echo "$YELLOW Auto-detecting .txt files in $WORK_DIR...$NC"
         local files=()
         for f in "$WORK_DIR"/*.txt; do
@@ -406,7 +398,7 @@ start_execution() {
     local CARRIER
     CARRIER=$(detect_carrier)
     echo "$GREEN [+] Network Carrier: $CARRIER$NC"
-    sleep 0.5
+    sleep 0.3
 
     local display_mode=1
 
@@ -418,6 +410,4 @@ start_execution() {
     else
         run_scan_active "$TARGET_FILE" "$TOTAL_HOSTS" "$timeout" "$final_batch_size" "$CARRIER" "$WORK_DIR" "$file_tag" "$threads" "$deadlock_choice" "$dns_choice" "$batch_enabled" "$scan_mode"
     fi
-
-    # No extra prompt – show_next_prompt already handles return/exit
 }
