@@ -196,6 +196,7 @@ resolve_host() {
 # ─── State Save / Resume ──────────────────────────────────
 save_scan_state() {
     local state_file="$RAT_CONFIG/scan_state_$(date +%Y%m%d_%H%M%S)_$RANDOM.json"
+    local elapsed_sec=$(( $(date +%s) - start_time ))
     cat > "$state_file" << EOF
 {
     "target_file": "$TARGET_FILE",
@@ -211,10 +212,14 @@ save_scan_state() {
     "blocked": $blocked,
     "billed": $billed,
     "bugs": $bugs,
+    "elapsed_sec": $elapsed_sec,
     "deadlock_mode": "$DEADLOCK_MODE",
     "scan_mode": "$SCAN_MODE",
     "dns_mode": "$DNS_MODE",
     "batch_enabled": "$BATCH_ENABLED"
+}
+EOF
+    echo "$state_file"
 }
 EOF
     echo "$state_file"
