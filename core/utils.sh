@@ -218,6 +218,7 @@ save_scan_state() {
     "dns_mode": "$DNS_MODE",
     "batch_enabled": "$BATCH_ENABLED"
 }
+
 EOF
     echo "$state_file"
 }
