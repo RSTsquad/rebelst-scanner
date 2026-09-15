@@ -1,5 +1,5 @@
 # =========================================================
-#  LOGIN & COMMAND HUB – NO ERROR TRAP
+#  LOGIN & COMMAND HUB – FIXED
 # =========================================================
 
 # ─── Scanner Login ────────────────────────────────────────
@@ -193,11 +193,13 @@ start_execution() {
                 R_BLK=$(jq -r '.blocked' "$selected_file")
                 R_BIL=$(jq -r '.billed' "$selected_file")
                 R_BUGS=$(jq -r '.bugs' "$selected_file" 2>/dev/null || echo 0)
+                R_ELAPSED=$(jq -r '.elapsed_sec' "$selected_file" 2>/dev/null || echo 0)
                 R_DEADLOCK=$(jq -r '.deadlock_mode' "$selected_file")
                 R_SCANMODE=$(jq -r '.scan_mode' "$selected_file")
                 R_DNS=$(jq -r '.dns_mode' "$selected_file")
                 R_BATCH_EN=$(jq -r '.batch_enabled' "$selected_file")
                 rm -f "$selected_file"
+                export RESUME_ELAPSED="$R_ELAPSED"
                 echo "$GREEN [+] Resuming scan from position $R_POS / $R_TOTAL$NC"
                 sleep 1
                 if [ "$R_SCANMODE" = "1" ] || [ "$R_SCANMODE" = "2" ]; then
@@ -231,18 +233,34 @@ start_execution() {
         TARGET_FILE="$WORK_DIR/scan_targets.txt"
         nano "$TARGET_FILE"
     elif [ -f "$WORK_DIR/$target_input" ]; then
+        # File exists in chosen directory
         TARGET_FILE="$WORK_DIR/$target_input"
     elif [ -f "$target_input" ]; then
+        # File exists in current directory
         TARGET_FILE="$target_input"
+    elif echo "$target_input" | grep -q '\.txt$'; then
+        # Looks like a filename but doesn't exist
+        echo "$RED[!] File '$target_input' not found in $WORK_DIR$NC"
+        echo "$YELLOW[!] Available .txt files in $WORK_DIR:$NC"
+        for f in "$WORK_DIR"/*.txt; do
+            [ -f "$f" ] && echo "    $(basename "$f")"
+        done
+        sleep 3
+        return
     elif echo "$target_input" | grep -q ' '; then
+        # Multiple hosts separated by space
         TARGET_FILE="$WORK_DIR/temp_targets.txt"
+        > "$TARGET_FILE"   # clear previous contents
         for host in $target_input; do
             echo "$host" >> "$TARGET_FILE"
         done
     elif echo "$target_input" | grep -q '\.'; then
+        # Single host
         TARGET_FILE="$WORK_DIR/temp_targets.txt"
+        > "$TARGET_FILE"
         echo "$target_input" > "$TARGET_FILE"
     else
+        # Auto-detect .txt files
         echo "$YELLOW Auto-detecting .txt files in $WORK_DIR...$NC"
         local files=()
         for f in "$WORK_DIR"/*.txt; do
@@ -393,7 +411,7 @@ start_execution() {
 
     echo ""
     echo -n "$CYAN[+] Analysing network...$NC"
-    sleep 1
+    sleep 0.5
     echo ""
     local CARRIER
     CARRIER=$(detect_carrier)
