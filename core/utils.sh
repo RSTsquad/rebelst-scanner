@@ -1,69 +1,49 @@
 # =========================================================
-#  UTILITIES – Device ID, V‑KEY, Install, Update, State
+#  UTILITIES – Device ID, V-KEY, Install, Update, State
 # =========================================================
 
-# ─── Device ID (persistent) ──────────────────────────────
 get_device_id() {
-    # If file exists, just read it
     if [ -f "$RAT_DEV_FILE" ]; then
         cat "$RAT_DEV_FILE"
         return
     fi
-
-    # Otherwise, generate a new one
     local DEV_ID=""
-
-    # 1. Try Android serial
     DEV_ID=$(getprop ro.serialno 2>/dev/null | head -c 16)
     if [ -z "$DEV_ID" ] || [ "$DEV_ID" = "unknown" ]; then
-        # 2. Try boot ID
         DEV_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '-' | head -c 16)
     fi
     if [ -z "$DEV_ID" ]; then
-        # 3. Fallback: hash of directory + time
         DEV_ID=$(echo "$RAT_DIR$(date +%s)" | sha256sum | cut -c1-16)
     fi
-
-    # Save it
     mkdir -p "$(dirname "$RAT_DEV_FILE")"
     echo "$DEV_ID" > "$RAT_DEV_FILE"
     chmod 600 "$RAT_DEV_FILE"
-
     echo "$DEV_ID"
 }
 
-# ─── V‑KEY Verification ──────────────────────────────────
 verify_vkey() {
     local VKEY="$1"
     local DEVICE_ID
-    DEVICE_ID=$(get_device_id)   # Now it will create if missing
+    DEVICE_ID=$(get_device_id)
     local PREFIX KEY_DEV_HASH KEY_EXPIRY KEY_CK
     PREFIX=$(echo "$VKEY" | cut -d'-' -f1)
     KEY_DEV_HASH=$(echo "$VKEY" | cut -d'-' -f2)
     KEY_EXPIRY=$(echo "$VKEY" | cut -d'-' -f3)
     KEY_CK=$(echo "$VKEY" | cut -d'-' -f4)
-
     [ "$PREFIX" != "RST" ] && { echo "INVALID"; return 1; }
-
     local CALC_DEV_HASH
     CALC_DEV_HASH=$(echo -n "$DEVICE_ID$SALT1" | sha256sum | cut -c1-8)
     [ "$CALC_DEV_HASH" != "$KEY_DEV_HASH" ] && { echo "WRONG_DEVICE"; return 1; }
-
     local CALC_CK
     CALC_CK=$(echo -n "$KEY_DEV_HASH$KEY_EXPIRY$SALT2" | sha256sum | cut -c1-4)
     [ "$CALC_CK" != "$KEY_CK" ] && { echo "INVALID"; return 1; }
-
     local TODAY
     TODAY=$(date +%Y%m%d)
     [ "$TODAY" -gt "$KEY_EXPIRY" ] && { echo "EXPIRED"; return 1; }
-
     echo "$KEY_EXPIRY"
     return 0
 }
 
-# ... the rest of your utils.sh (install_rat, update_tool, detect_carrier, etc.) remains the same ...
-
-# ─── Installation ─────────────────────────────────────────
 install_rat() {
     clear
     echo "$CYAN[+] Installing R@t Scanner Tool v$RAT_VERSION...$NC"
@@ -71,48 +51,29 @@ install_rat() {
     pkg update -y 2>/dev/null
     pkg install -y curl jq coreutils dig 2>/dev/null
     mkdir -p "$RAT_DIR" "$RAT_CONFIG" "$RAT_RESULTS" "$RAT_LOGS" "$RAT_SAVED"
-
-    echo "$YELLOW[+] This may take some few minutes (1-5)...$NC"
-    sleep 1
-
     echo "$GREEN[+] curl installed ✓$NC"
     echo "$GREEN[+] jq installed ✓$NC"
     echo "$GREEN[+] coreutils installed ✓$NC"
     echo "$GREEN[+] dig installed ✓$NC"
-
     if [ ! -f "$RAT_DEV_FILE" ]; then
-        echo "$YELLOW[+] Generating device ID...$NC"
         DEV_ID=$(getprop ro.serialno 2>/dev/null | head -c 16)
-        if [ -z "$DEV_ID" ]; then
-            DEV_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '-' | head -c 16)
-        fi
-        if [ -z "$DEV_ID" ]; then
-            DEV_ID=$(date +%s%N | sha256sum | cut -c1-16)
-        fi
+        [ -z "$DEV_ID" ] && DEV_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '-' | head -c 16)
+        [ -z "$DEV_ID" ] && DEV_ID=$(date +%s%N | sha256sum | cut -c1-16)
         echo "$DEV_ID" > "$RAT_DEV_FILE"
         chmod 600 "$RAT_DEV_FILE"
     fi
-
-    # Copy the main script (this will be done by install.sh)
-    # But if run directly, we source from current dir
-    # We'll handle this in install.sh separately.
+    echo "$GREEN[+] Device ID generated ✓$NC"
     echo ""
     echo "$GREEN[+] Installation successful!$NC"
-    echo "$GREEN[+] YOU CAN NOW LAUNCH THE SCANNER FROM ANYWHERE BY TYPING ANY OF THESE:$NC"
-    echo "  $AQUA R@t$NC"
-    echo "  $AQUA R@tscan$NC"
-    echo "  $AQUA RSTzscan$NC"
-    echo ""
     read -p "$YELLOW[!!] Press ENTER to continue...$NC"
 }
 
-# ─── Update Tool ──────────────────────────────────────────
 update_tool() {
     echo "$CYAN[+] Checking for updates...$NC"
     local REMOTE_VERSION
     REMOTE_VERSION=$(curl -s "$GITHUB_RAW/core/config.sh" | grep -m1 'RAT_VERSION="' | cut -d'"' -f2)
     if [ -z "$REMOTE_VERSION" ]; then
-        echo "$RED[!] Could not fetch remote version. Check your internet.$NC"
+        echo "$RED[!] Could not fetch remote version.$NC"
         sleep 2
         return
     fi
@@ -121,19 +82,18 @@ update_tool() {
         sleep 2
         return
     fi
-    echo "$YELLOW[!] New version available: $REMOTE_VERSION (yours: $RAT_VERSION)$NC"
+    echo "$YELLOW[!] New version: $REMOTE_VERSION (yours: $RAT_VERSION)$NC"
     echo "$YELLOW[!] Downloading update...$NC"
     for file in rat.sh core/config.sh core/utils.sh core/ui.sh core/login.sh core/scanner.sh; do
         curl -s -o "$RAT_DIR/$file" "$GITHUB_RAW/$file"
     done
     chmod +x "$RAT_DIR/rat.sh"
     chmod +x "$RAT_DIR/core"/*.sh
-    echo "$GREEN[+] Update applied successfully. Please restart the tool.$NC"
+    echo "$GREEN[+] Update applied. Please restart.$NC"
     sleep 2
     exit 0
 }
 
-# ─── Carrier Detection ────────────────────────────────────
 detect_carrier() {
     local active_sim=$(getprop persist.radio.data_sim 2>/dev/null)
     local carrier="Unknown"
@@ -169,7 +129,6 @@ detect_carrier() {
     echo "$carrier"
 }
 
-# ─── DNS Resolver ─────────────────────────────────────────
 resolve_host() {
     local domain="$1"
     local dns_mode="$2"
@@ -193,34 +152,32 @@ resolve_host() {
     return 1
 }
 
-# ─── State Save / Resume ──────────────────────────────────
 save_scan_state() {
     local state_file="$RAT_CONFIG/scan_state_$(date +%Y%m%d_%H%M%S)_$RANDOM.json"
-    local elapsed_sec=$(( $(date +%s) - start_time ))
+    local elapsed_sec=0
+    if [ -n "$start_time" ] && [ "$start_time" -gt 0 ] 2>/dev/null; then
+        elapsed_sec=$(( $(date +%s) - start_time ))
+    fi
     cat > "$state_file" << EOF
 {
     "target_file": "$TARGET_FILE",
-    "total_scanned": $total_scanned,
-    "total": $TOTAL,
-    "timeout": $TIMEOUT,
-    "batch": $BATCH,
-    "threads": $THREADS,
+    "total_scanned": ${total_scanned:-0},
+    "total": ${TOTAL:-0},
+    "timeout": ${TIMEOUT:-10},
+    "batch": ${BATCH:-100},
+    "threads": ${THREADS:-100},
     "carrier": "$CARRIER",
     "work_dir": "$WORK_DIR",
     "tag": "$TAG",
-    "zero_rated": $zero_rated,
-    "blocked": $blocked,
-    "billed": $billed,
-    "bugs": $bugs,
+    "zero_rated": ${zero_rated:-0},
+    "blocked": ${blocked:-0},
+    "billed": ${billed:-0},
+    "bugs": ${bugs:-0},
     "elapsed_sec": $elapsed_sec,
     "deadlock_mode": "$DEADLOCK_MODE",
     "scan_mode": "$SCAN_MODE",
     "dns_mode": "$DNS_MODE",
     "batch_enabled": "$BATCH_ENABLED"
-}
-
-EOF
-    echo "$state_file"
 }
 EOF
     echo "$state_file"
@@ -247,7 +204,6 @@ list_paused_scans() {
     return 0
 }
 
-# ─── Next Prompt ──────────────────────────────────────────
 show_next_prompt() {
     echo ""
     echo "$CYAN ╔═•WHAT'S NEXT?•════════════════════════════$NC"
