@@ -1,5 +1,5 @@
 # =========================================================
-#  SCANNING ENGINES – CLEAN
+#  SCANNING ENGINES – REAL-TIME ANIMATION
 # =========================================================
 
 ANIM_FRAMES=("-R@-------" "--R@------" "---R@-----" "----R@----" "-----R@---" "------R@--" "-------R@-" "--------R@" "-------R@-" "------R@--" "-----R@---" "----R@----" "---R@-----" "--R@------" "-R@-------")
@@ -78,6 +78,31 @@ check_host_active() {
     fi
 }
 
+# ─── Deadlock Wait with Countdown ────────────────────────
+do_deadlock_wait() {
+    local mode="$1"
+    case "$mode" in
+        1) return 0 ;;  # Manual – no wait
+        3)
+            echo ""
+            for i in $(seq 10 -1 1); do
+                printf "\r$YELLOW[!] Auto-waiting: %2ds $NC" "$i"
+                sleep 1
+            done
+            printf "\r\033[K"
+            ;;
+        4)
+            echo ""
+            for i in $(seq 4 -1 1); do
+                printf "\r$YELLOW[!] Auto-waiting: %2ds $NC" "$i"
+                sleep 1
+            done
+            printf "\r\033[K"
+            ;;
+    esac
+}
+
+# ─── Zero‑Rated Engine ────────────────────────────────────
 run_scan_zero() {
     mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
 
@@ -134,12 +159,10 @@ run_scan_zero() {
     echo "$CYAN ╚═══════════════════════════════════════════════════════╝$NC"
     echo ""
 
-    # CLEAN tmp_dir to prevent leftover hosts from previous scans
     local tmp_dir="$RAT_CONFIG/tmp_batch"
     rm -rf "$tmp_dir"
     mkdir -p "$tmp_dir"
 
-    # Prepare scan source (skip already-scanned hosts)
     local scan_source="$TARGET_FILE"
     if [ "$START_POS" -gt 0 ]; then
         local resume_file="$tmp_dir/resume_hosts.txt"
@@ -168,23 +191,34 @@ run_scan_zero() {
         [ -z "$batch_hosts" ] && continue
         local batch_size=$(echo "$batch_hosts" | wc -l)
         local results=()
-        local batch_done=0
 
+        # ── REAL-TIME ANIMATION DURING XARGS ──
         local tmp_res="$tmp_dir/tmp_res.txt"
-        echo "$batch_hosts" | xargs -P "$THREADS" -I {} bash -c 'r=$(check_host_zero "{}" "$TIMEOUT" "$DNS_MODE" "$SCAN_MODE"); echo "$r {}"' > "$tmp_res" 2>/dev/null
+        local progress_file="$tmp_dir/progress_$batch_idx"
+        > "$tmp_res"
+        > "$progress_file"
 
-        while IFS=' ' read -r result host; do
-            [ -z "$host" ] && continue
-            results+=("$result|$host")
-            batch_done=$((batch_done + 1))
+        echo "$batch_hosts" | xargs -P "$THREADS" -I {} bash -c '
+            r=$(check_host_zero "{}" "$TIMEOUT" "$DNS_MODE" "$SCAN_MODE")
+            printf "%s %s\n" "$r" "{}" >> "'"$tmp_res"'"
+            echo "1" >> "'"$progress_file"'"
+        ' &
+        local XARGS_PID=$!
+
+        # Animate while xargs runs
+        while kill -0 "$XARGS_PID" 2>/dev/null; do
             anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
             local frame="${ANIM_FRAMES[anim_pos]}"
+            local done_count=0
+            [ -f "$progress_file" ] && done_count=$(wc -l < "$progress_file" 2>/dev/null | tr -d ' ')
+            [ -z "$done_count" ] && done_count=0
+
             local elapsed_sec=$(( $(date +%s) - start_time ))
             local elapsed_min=$((elapsed_sec / 60))
             local elapsed_sec_rem=$((elapsed_sec % 60))
             local elapsed_str=$(printf "%02dm:%02ds" $elapsed_min $elapsed_sec_rem)
             local eta_str="Calculating..."
-            local total_processed=$((total_scanned + batch_done))
+            local total_processed=$((total_scanned + done_count))
             if [ $total_processed -gt 0 ] && [ $elapsed_sec -gt 5 ]; then
                 local eta_sec=$(( (TOTAL - total_processed) * elapsed_sec / total_processed ))
                 local eta_min=$((eta_sec / 60))
@@ -193,19 +227,21 @@ run_scan_zero() {
             fi
             clear_line
             printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$zero_rated$NC | $RED🔥Bugs:$bugs$NC" \
-                "$frame" "$batch_done" "$batch_size" "$total_processed" "$TOTAL"
+                "$frame" "$done_count" "$batch_size" "$total_processed" "$TOTAL"
             printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$elapsed_str" "$eta_str"
             printf "\033[1A"
-        done < "$tmp_res"
-        rm -f "$tmp_res"
-
+            sleep 0.15
+        done
+        wait "$XARGS_PID" 2>/dev/null
         clear_line
+
+        # ── REVEAL RESULTS ──
         printf "\n"
-        for entry in "${results[@]}"; do
-            local st="${entry%|*}"
-            local host="${entry##*|}"
-            local code="${st#*|}"
-            st="${st%|*}"
+        while IFS=' ' read -r result host; do
+            [ -z "$host" ] && continue
+            results+=("$result|$host")
+            local st="${result%|*}"
+            local code="${result#*|}"
             case "$st" in
                 ZERO_RATED) status_colour="$GREEN" ;;
                 BILLED)     status_colour="$RED" ;;
@@ -216,8 +252,10 @@ run_scan_zero() {
             echo ""
             echo "$st $host" >> "$detail_log"
             echo "[$st] $host" >> "$full_log"
-        done
+        done < "$tmp_res"
+        rm -f "$tmp_res" "$progress_file"
 
+        # ── UPDATE COUNTERS AFTER RESULTS ──
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
             st="${st%|*}"
@@ -230,26 +268,27 @@ run_scan_zero() {
         done
         total_scanned=$((total_scanned + batch_size))
 
+        [ "$BATCH_ENABLED" != "n" ] && [ "$BATCH_ENABLED" != "N" ] && rm -f "$batch_file"
+
+        # ── DEADLOCK WAIT ──
         is_last=$([ $batch_idx -eq $num_batches ] && echo "yes" || echo "no")
         if [ "$is_last" != "yes" ]; then
-            case "$DEADLOCK_MODE" in
-                1) : ;;
-                2) if ! curl -s --connect-timeout 3 https://google.com >/dev/null 2>&1; then
-                       echo "$RED[!] Network down. Waiting to heal...$NC"
-                       while ! curl -s --connect-timeout 3 https://google.com >/dev/null 2>&1; do sleep 2; done
-                       echo "$GREEN[+] Network back.$NC"
-                   fi ;;
-                3) sleep 10 ;;
-                4) sleep 4 ;;
-            esac
+            if [ "$DEADLOCK_MODE" = "2" ]; then
+                if ! curl -s --connect-timeout 3 https://google.com >/dev/null 2>&1; then
+                    echo "$RED[!] Network down. Waiting to heal...$NC"
+                    while ! curl -s --connect-timeout 3 https://google.com >/dev/null 2>&1; do sleep 2; done
+                    echo "$GREEN[+] Network back.$NC"
+                fi
+            else
+                do_deadlock_wait "$DEADLOCK_MODE"
+            fi
         fi
     done
 
     trap - INT TERM
     rm -rf "$tmp_dir"
 
-    local end_time
-    end_time=$(date +%s)
+    local end_time=$(date +%s)
     local duration_sec=$((end_time - start_time))
     local dur_h=$((duration_sec / 3600))
     local dur_m=$(((duration_sec % 3600) / 60))
@@ -272,37 +311,23 @@ run_scan_zero() {
     echo "$CYAN ╚═════════════════════════════════════════════════════════════╝$NC"
     echo ""
 
-    local date_str
-    date_str=$(date +%Y%m%d_%H%M)
-    local safe_carrier
-    safe_carrier=$(echo "$CARRIER" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
+    local date_str=$(date +%Y%m%d_%H%M)
+    local safe_carrier=$(echo "$CARRIER" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
     local tag_part=""
     [ -n "$TAG" ] && tag_part="_$TAG"
     local base_name="R0scan@_${safe_carrier}_${date_str}${tag_part}"
 
     cp "$full_log" "$WORK_DIR/${base_name}_fullogs.txt" 2>/dev/null
     echo "$GREEN !] Full log: $WORK_DIR/${base_name}_fullogs.txt$NC"
-
-    if [ $zero_rated -gt 0 ]; then
-        grep "^ZERO_RATED" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_zero_rated.txt"
-        echo "$GREEN !] Zero-rated: $WORK_DIR/${base_name}_zero_rated.txt$NC"
-    fi
-    if [ $blocked -gt 0 ]; then
-        grep "^BLOCKED" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_blocked.txt"
-        echo "$GREEN !] Blocked: $WORK_DIR/${base_name}_blocked.txt$NC"
-    fi
-    if [ $billed -gt 0 ]; then
-        grep "^BILLED" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_billed.txt"
-        echo "$GREEN !] Billed: $WORK_DIR/${base_name}_billed.txt$NC"
-    fi
-    if [ $bugs -gt 0 ]; then
-        grep "^BUG" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_bugs.txt"
-        echo "$GREEN !] Bugs: $WORK_DIR/${base_name}_bugs.txt$NC"
-    fi
+    [ $zero_rated -gt 0 ] && grep "^ZERO_RATED" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_zero_rated.txt" && echo "$GREEN !] Zero-rated: ${base_name}_zero_rated.txt$NC"
+    [ $blocked -gt 0 ] && grep "^BLOCKED" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_blocked.txt" && echo "$GREEN !] Blocked: ${base_name}_blocked.txt$NC"
+    [ $billed -gt 0 ] && grep "^BILLED" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_billed.txt" && echo "$GREEN !] Billed: ${base_name}_billed.txt$NC"
+    [ $bugs -gt 0 ] && grep "^BUG" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_bugs.txt" && echo "$GREEN !] Bugs: ${base_name}_bugs.txt$NC"
 
     show_next_prompt
 }
 
+# ─── Active Engine ────────────────────────────────────────
 run_scan_active() {
     mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
 
@@ -369,23 +394,32 @@ run_scan_active() {
         [ -z "$batch_hosts" ] && continue
         local batch_size=$(echo "$batch_hosts" | wc -l)
         local results=()
-        local batch_done=0
 
         local tmp_res="$tmp_dir/tmp_res.txt"
-        echo "$batch_hosts" | xargs -P "$THREADS" -I {} bash -c 'r=$(check_host_active "{}" "$TIMEOUT" "$DNS_MODE"); echo "$r {}"' > "$tmp_res" 2>/dev/null
+        local progress_file="$tmp_dir/progress_$batch_idx"
+        > "$tmp_res"
+        > "$progress_file"
 
-        while IFS=' ' read -r result host; do
-            [ -z "$host" ] && continue
-            results+=("$result|$host")
-            batch_done=$((batch_done + 1))
+        echo "$batch_hosts" | xargs -P "$THREADS" -I {} bash -c '
+            r=$(check_host_active "{}" "$TIMEOUT" "$DNS_MODE")
+            printf "%s %s\n" "$r" "{}" >> "'"$tmp_res"'"
+            echo "1" >> "'"$progress_file"'"
+        ' &
+        local XARGS_PID=$!
+
+        while kill -0 "$XARGS_PID" 2>/dev/null; do
             anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
             local frame="${ANIM_FRAMES[anim_pos]}"
+            local done_count=0
+            [ -f "$progress_file" ] && done_count=$(wc -l < "$progress_file" 2>/dev/null | tr -d ' ')
+            [ -z "$done_count" ] && done_count=0
+
             local elapsed_sec=$(( $(date +%s) - start_time ))
             local elapsed_min=$((elapsed_sec / 60))
             local elapsed_sec_rem=$((elapsed_sec % 60))
             local elapsed_str=$(printf "%02dm:%02ds" $elapsed_min $elapsed_sec_rem)
             local eta_str="Calculating..."
-            local total_processed=$((total_done + batch_done))
+            local total_processed=$((total_done + done_count))
             if [ $total_processed -gt 0 ] && [ $elapsed_sec -gt 5 ]; then
                 local eta_sec=$(( (TOTAL - total_processed) * elapsed_sec / total_processed ))
                 local eta_min=$((eta_sec / 60))
@@ -394,19 +428,20 @@ run_scan_active() {
             fi
             clear_line
             printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$live$NC | $RED❌ DEAD:$dead$NC" \
-                "$frame" "$batch_done" "$batch_size" "$total_processed" "$TOTAL"
+                "$frame" "$done_count" "$batch_size" "$total_processed" "$TOTAL"
             printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$elapsed_str" "$eta_str"
             printf "\033[1A"
-        done < "$tmp_res"
-        rm -f "$tmp_res"
-
+            sleep 0.15
+        done
+        wait "$XARGS_PID" 2>/dev/null
         clear_line
+
         printf "\n"
-        for entry in "${results[@]}"; do
-            local st="${entry%|*}"
-            local host="${entry##*|}"
-            local code="${st#*|}"
-            st="${st%|*}"
+        while IFS=' ' read -r result host; do
+            [ -z "$host" ] && continue
+            results+=("$result|$host")
+            local st="${result%|*}"
+            local code="${result#*|}"
             if [ "$st" = "LIVE" ]; then
                 echo "$GREEN$host -> LIVE (HTTP:$code)${NC}"
                 echo "LIVE $host" >> "$detail_log"
@@ -417,27 +452,29 @@ run_scan_active() {
                 echo "[DEAD] $host" >> "$full_log"
             fi
             echo ""
-        done
+        done < "$tmp_res"
+        rm -f "$tmp_res" "$progress_file"
 
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
             st="${st%|*}"
-            if [ "$st" = "LIVE" ]; then live=$((live+1)); else dead=$((dead+1)); fi
+            [ "$st" = "LIVE" ] && live=$((live+1)) || dead=$((dead+1))
         done
         total_done=$((total_done + batch_size))
 
+        [ "$BATCH_ENABLED" != "n" ] && [ "$BATCH_ENABLED" != "N" ] && rm -f "$batch_file"
+
         is_last=$([ $batch_idx -eq $num_batches ] && echo "yes" || echo "no")
         if [ "$is_last" != "yes" ]; then
-            case "$DEADLOCK_MODE" in
-                1) : ;;
-                2) if ! curl -s --connect-timeout 3 https://google.com >/dev/null 2>&1; then
-                       echo "$RED[!] Network down. Waiting...$NC"
-                       while ! curl -s --connect-timeout 3 https://google.com >/dev/null 2>&1; do sleep 2; done
-                       echo "$GREEN[+] Network back.$NC"
-                   fi ;;
-                3) sleep 10 ;;
-                4) sleep 4 ;;
-            esac
+            if [ "$DEADLOCK_MODE" = "2" ]; then
+                if ! curl -s --connect-timeout 3 https://google.com >/dev/null 2>&1; then
+                    echo "$RED[!] Network down. Waiting...$NC"
+                    while ! curl -s --connect-timeout 3 https://google.com >/dev/null 2>&1; do sleep 2; done
+                    echo "$GREEN[+] Network back.$NC"
+                fi
+            else
+                do_deadlock_wait "$DEADLOCK_MODE"
+            fi
         fi
     done
 
@@ -473,15 +510,8 @@ run_scan_active() {
 
     cp "$full_log" "$WORK_DIR/${base_name}_fullogs.txt" 2>/dev/null
     echo "$GREEN !] Full log: $WORK_DIR/${base_name}_fullogs.txt$NC"
-
-    if [ $live -gt 0 ]; then
-        grep "^LIVE" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_live.txt"
-        echo "$GREEN !] Live list: $WORK_DIR/${base_name}_live.txt$NC"
-    fi
-    if [ $dead -gt 0 ]; then
-        grep "^DEAD" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_dead.txt"
-        echo "$GREEN !] Dead list: $WORK_DIR/${base_name}_dead.txt$NC"
-    fi
+    [ $live -gt 0 ] && grep "^LIVE" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_live.txt" && echo "$GREEN !] Live list: ${base_name}_live.txt$NC"
+    [ $dead -gt 0 ] && grep "^DEAD" "$detail_log" | awk '{print $2}' > "$WORK_DIR/${base_name}_dead.txt" && echo "$GREEN !] Dead list: ${base_name}_dead.txt$NC"
 
     show_next_prompt
 }
