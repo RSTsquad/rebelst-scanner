@@ -1,5 +1,5 @@
 # =========================================================
-#  SCANNING ENGINES – SMOOTH BATCH COUNTER
+#  SCANNING ENGINES – SMOOTH COUNTER
 # =========================================================
 
 ANIM_FRAMES=("-R@-------" "--R@------" "---R@-----" "----R@----" "-----R@---" "------R@--" "-------R@-" "--------R@" "-------R@-" "------R@--" "-----R@---" "----R@----" "---R@-----" "--R@------" "-R@-------")
@@ -140,7 +140,7 @@ run_scan_core() {
         local batch_size=$(echo "$batch_hosts" | wc -l | tr -d ' ')
         local results=()
 
-        # ── PHASE 1: Test entire batch with live progress ──
+        # ── PHASE 1: Test entire batch with smooth live counter ──
         local tmp_res="$tmp_dir/res.txt"
         local prog="$tmp_dir/prog.bin"
         > "$tmp_res"; > "$prog"
@@ -160,80 +160,66 @@ run_scan_core() {
         fi
         local XPID=$!
 
-# Smooth counter: display moves toward real count 1-by-1
-local display=0
-while kill -0 $XPID 2>/dev/null; do
-    local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
-    [ -z "$real" ] && real=0
+        local display=0
+        while kill -0 $XPID 2>/dev/null; do
+            local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
+            [ -z "$real" ] && real=0
 
-    # Move display toward real, one step at a time
-    if [ $display -lt $real ]; then
-        local gap=$(( real - display ))
-        if [ $gap -gt 50 ]; then
-            display=$(( display + gap / 10 ))   # big burst — catch up fast
-        elif [ $gap -gt 10 ]; then
-            display=$(( display + 2 ))           # medium burst
-        else
-            display=$(( display + 1 ))           # normal 1-by-1
-        fi
-    fi
+            # Move display toward real, one step at a time (smooth)
+            if [ $display -lt $real ]; then
+                local gap=$(( real - display ))
+                if [ $gap -gt 50 ]; then
+                    display=$(( display + gap / 10 ))
+                elif [ $gap -gt 10 ]; then
+                    display=$(( display + 2 ))
+                else
+                    display=$(( display + 1 ))
+                fi
+            fi
 
-    # Animation frame follows the DISPLAY value (smooth)
-    local frame="${ANIM_FRAMES[$(( display % ANIM_LEN ))]}"
+            # Animation frame follows the DISPLAY value (smooth)
+            local frame="${ANIM_FRAMES[$(( display % ANIM_LEN ))]}"
 
-    local esec=$(( $(date +%s) - start_time ))
-    local emin=$((esec / 60)); local erem=$((esec % 60))
-    local estr=$(printf "%02dm:%02ds" $emin $erem)
-    local etastr="Calculating..."
-    if [ $total_scanned -gt 0 ] && [ $esec -gt 5 ]; then
-        local eta=$(( (TOTAL - total_scanned) * esec / total_scanned ))
-        local em=$((eta / 60)); local er=$((eta % 60))
-        etastr=$(printf "%02dm:%02ds" $em $er)
-    fi
+            local esec=$(( $(date +%s) - start_time ))
+            local emin=$((esec / 60)); local erem=$((esec % 60))
+            local estr=$(printf "%02dm:%02ds" $emin $erem)
+            local etastr="Calculating..."
+            if [ $total_scanned -gt 0 ] && [ $esec -gt 5 ]; then
+                local eta=$(( (TOTAL - total_scanned) * esec / total_scanned ))
+                local em=$((eta / 60)); local er=$((eta % 60))
+                etastr=$(printf "%02dm:%02ds" $em $er)
+            fi
 
-    clear_line
-    if [ "$MODE" = "zero" ]; then
-        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$counter_a$NC | $RED🔥Bugs:$counter_c$NC" \
-            "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
-    else
-        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$counter_a$NC | $RED❌ DEAD:$counter_b$NC" \
-            "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
-    fi
-    printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
-    printf "\033[1A"
-    sleep 0.04
-done
-wait $XPID 2>/dev/null
-
-# Snap display to real count before revealing results
-local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
-[ -z "$real" ] && real=0
-while [ $display -lt $real ]; do
-    display=$(( display + 1 ))
-    local frame="${ANIM_FRAMES[$(( display % ANIM_LEN ))]}"
-    clear_line
-    if [ "$MODE" = "zero" ]; then
-        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$counter_a$NC | $RED🔥Bugs:$counter_c$NC" \
-            "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
-    else
-        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$counter_a$NC | $RED❌ DEAD:$counter_b$NC" \
-            "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
-    fi
-    sleep 0.01
-done
-clear_line
+            clear_line
             if [ "$MODE" = "zero" ]; then
                 printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$counter_a$NC | $RED🔥Bugs:$counter_c$NC" \
-                    "$frame" "$done" "$batch_size" "$total_scanned" "$TOTAL"
+                    "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
             else
                 printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$counter_a$NC | $RED❌ DEAD:$counter_b$NC" \
-                    "$frame" "$done" "$batch_size" "$total_scanned" "$TOTAL"
+                    "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
             fi
             printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
             printf "\033[1A"
-            sleep 0.01
+            sleep 0.04
         done
         wait $XPID 2>/dev/null
+
+        # Snap display to real count before revealing results
+        local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
+        [ -z "$real" ] && real=0
+        while [ $display -lt $real ]; do
+            display=$(( display + 1 ))
+            local frame="${ANIM_FRAMES[$(( display % ANIM_LEN ))]}"
+            clear_line
+            if [ "$MODE" = "zero" ]; then
+                printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$counter_a$NC | $RED🔥Bugs:$counter_c$NC" \
+                    "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
+            else
+                printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$counter_a$NC | $RED❌ DEAD:$counter_b$NC" \
+                    "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
+            fi
+            sleep 0.01
+        done
         clear_line
 
         # ── PHASE 2: Reveal all results fast (no blank lines) ──
