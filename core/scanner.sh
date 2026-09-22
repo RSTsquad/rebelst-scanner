@@ -188,7 +188,7 @@ run_scan_core() {
             fi
             printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
             printf "\033[1A"
-            sleep 0.03
+            sleep 0.01
         done
         wait $XPID 2>/dev/null
         clear_line
