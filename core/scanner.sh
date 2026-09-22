@@ -160,25 +160,68 @@ run_scan_core() {
         fi
         local XPID=$!
 
-        while kill -0 $XPID 2>/dev/null; do
-            # Instant byte count – 1 byte per finished host
-            local done=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
-            [ -z "$done" ] && done=0
+# Smooth counter: display moves toward real count 1-by-1
+local display=0
+while kill -0 $XPID 2>/dev/null; do
+    local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
+    [ -z "$real" ] && real=0
 
-            # Animation frame tied DIRECTLY to done count (never stutters)
-            local frame="${ANIM_FRAMES[$(( done % ANIM_LEN ))]}"
+    # Move display toward real, one step at a time
+    if [ $display -lt $real ]; then
+        local gap=$(( real - display ))
+        if [ $gap -gt 50 ]; then
+            display=$(( display + gap / 10 ))   # big burst — catch up fast
+        elif [ $gap -gt 10 ]; then
+            display=$(( display + 2 ))           # medium burst
+        else
+            display=$(( display + 1 ))           # normal 1-by-1
+        fi
+    fi
 
-            local esec=$(( $(date +%s) - start_time ))
-            local emin=$((esec / 60)); local erem=$((esec % 60))
-            local estr=$(printf "%02dm:%02ds" $emin $erem)
-            local etastr="Calculating..."
-            if [ $total_scanned -gt 0 ] && [ $esec -gt 5 ]; then
-                local eta=$(( (TOTAL - total_scanned) * esec / total_scanned ))
-                local em=$((eta / 60)); local er=$((eta % 60))
-                etastr=$(printf "%02dm:%02ds" $em $er)
-            fi
+    # Animation frame follows the DISPLAY value (smooth)
+    local frame="${ANIM_FRAMES[$(( display % ANIM_LEN ))]}"
 
-            clear_line
+    local esec=$(( $(date +%s) - start_time ))
+    local emin=$((esec / 60)); local erem=$((esec % 60))
+    local estr=$(printf "%02dm:%02ds" $emin $erem)
+    local etastr="Calculating..."
+    if [ $total_scanned -gt 0 ] && [ $esec -gt 5 ]; then
+        local eta=$(( (TOTAL - total_scanned) * esec / total_scanned ))
+        local em=$((eta / 60)); local er=$((eta % 60))
+        etastr=$(printf "%02dm:%02ds" $em $er)
+    fi
+
+    clear_line
+    if [ "$MODE" = "zero" ]; then
+        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$counter_a$NC | $RED🔥Bugs:$counter_c$NC" \
+            "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
+    else
+        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$counter_a$NC | $RED❌ DEAD:$counter_b$NC" \
+            "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
+    fi
+    printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
+    printf "\033[1A"
+    sleep 0.04
+done
+wait $XPID 2>/dev/null
+
+# Snap display to real count before revealing results
+local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
+[ -z "$real" ] && real=0
+while [ $display -lt $real ]; do
+    display=$(( display + 1 ))
+    local frame="${ANIM_FRAMES[$(( display % ANIM_LEN ))]}"
+    clear_line
+    if [ "$MODE" = "zero" ]; then
+        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$counter_a$NC | $RED🔥Bugs:$counter_c$NC" \
+            "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
+    else
+        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$counter_a$NC | $RED❌ DEAD:$counter_b$NC" \
+            "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
+    fi
+    sleep 0.01
+done
+clear_line
             if [ "$MODE" = "zero" ]; then
                 printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$counter_a$NC | $RED🔥Bugs:$counter_c$NC" \
                     "$frame" "$done" "$batch_size" "$total_scanned" "$TOTAL"
