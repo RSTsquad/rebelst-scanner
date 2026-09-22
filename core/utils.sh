@@ -71,9 +71,9 @@ install_rat() {
 update_tool() {
     echo "$CYAN[+] Checking for updates...$NC"
     local REMOTE_VERSION
-    REMOTE_VERSION=$(curl -s "$GITHUB_RAW/core/config.sh" | grep -m1 'RAT_VERSION="' | cut -d'"' -f2)
+    REMOTE_VERSION=$(curl -s --max-time 10 "$GITHUB_RAW/core/config.sh" | grep -m1 'RAT_VERSION="' | cut -d'"' -f2)
     if [ -z "$REMOTE_VERSION" ]; then
-        echo "$RED[!] Could not fetch remote version.$NC"
+        echo "$RED[!] Could not fetch remote version. Check internet.$NC"
         sleep 2
         return
     fi
@@ -82,15 +82,18 @@ update_tool() {
         sleep 2
         return
     fi
-    echo "$YELLOW[!] New version: $REMOTE_VERSION (yours: $RAT_VERSION)$NC"
+    echo "$YELLOW[!] New version available: $REMOTE_VERSION (yours: $RAT_VERSION)$NC"
     echo "$YELLOW[!] Downloading update...$NC"
     for file in rat.sh core/config.sh core/utils.sh core/ui.sh core/login.sh core/scanner.sh; do
         curl -s -o "$RAT_DIR/$file" "$GITHUB_RAW/$file"
+        echo "$GREEN[+] $file updated$NC"
     done
     chmod +x "$RAT_DIR/rat.sh"
     chmod +x "$RAT_DIR/core"/*.sh
-    echo "$GREEN[+] Update applied. Please restart.$NC"
-    sleep 2
+    echo ""
+    echo "$GREEN[+] Update applied successfully!$NC"
+    echo "$YELLOW[!] Restart R@t to use new version.$NC"
+    sleep 3
     exit 0
 }
 
