@@ -65,9 +65,9 @@ do_deadlock_wait() {
     esac
 }
 
-# ─── Core Scan Loop (shared logic) ───────────────────────
+# ─── Core Scan Loop (shared by both engines) ─────────────
 run_scan_core() {
-    local MODE="$1"  # "zero" or "active"
+    local MODE="$1"
     shift
     local TARGET_FILE="$1" TOTAL="$2" TIMEOUT="$3" BATCH="$4" CARRIER="$5" WORK_DIR="$6" TAG="$7" THREADS="$8" DEADLOCK_MODE="$9"
     shift 9
@@ -82,7 +82,6 @@ run_scan_core() {
     else
         start_time=$(date +%s)
     fi
-    local anim_pos=0
 
     local detail_log full_log
     if [ "$MODE" = "zero" ]; then
@@ -141,7 +140,7 @@ run_scan_core() {
         local batch_size=$(echo "$batch_hosts" | wc -l | tr -d ' ')
         local results=()
 
-        # ── PHASE 1: Silent testing with live progress ──
+        # ── PHASE 1: Test entire batch with live progress ──
         local tmp_res="$tmp_dir/res.txt"
         local prog="$tmp_dir/prog.bin"
         > "$tmp_res"; > "$prog"
@@ -150,29 +149,25 @@ run_scan_core() {
             echo "$batch_hosts" | xargs -P "$THREADS" -I {} bash -c '
                 r=$(check_host_zero "{}" "$TIMEOUT" "$DNS_MODE" "$SCAN_MODE")
                 echo "$r {}" >> "'"$tmp_res"'"
-                printf "x" >> "'"$prog"'"
+                echo -n "x" >> "'"$prog"'"
             ' &
         else
             echo "$batch_hosts" | xargs -P "$THREADS" -I {} bash -c '
                 r=$(check_host_active "{}" "$TIMEOUT" "$DNS_MODE")
                 echo "$r {}" >> "'"$tmp_res"'"
-                printf "x" >> "'"$prog"'"
+                echo -n "x" >> "'"$prog"'"
             ' &
         fi
         local XPID=$!
 
-        local last_done=0
         while kill -0 $XPID 2>/dev/null; do
-            # Instant byte count of progress file
-            local done=$(stat -c%s "$prog" 2>/dev/null || echo 0)
+            # Instant byte count – 1 byte per finished host
+            local done=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
             [ -z "$done" ] && done=0
-            local delta=$((done - last_done))
-            if [ $delta -gt 0 ]; then
-                anim_pos=$(( (anim_pos + delta) % ANIM_LEN ))
-                last_done=$done
-            fi
 
-            local frame="${ANIM_FRAMES[anim_pos]}"
+            # Animation frame tied DIRECTLY to done count (never stutters)
+            local frame="${ANIM_FRAMES[$(( done % ANIM_LEN ))]}"
+
             local esec=$(( $(date +%s) - start_time ))
             local emin=$((esec / 60)); local erem=$((esec % 60))
             local estr=$(printf "%02dm:%02ds" $emin $erem)
@@ -193,12 +188,12 @@ run_scan_core() {
             fi
             printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
             printf "\033[1A"
-            sleep 0.05
+            sleep 0.03
         done
         wait $XPID 2>/dev/null
         clear_line
 
-        # ── PHASE 2: Reveal all results (fast, no blank lines) ──
+        # ── PHASE 2: Reveal all results fast (no blank lines) ──
         while IFS=' ' read -r result host; do
             [ -z "$host" ] && continue
             results+=("$result|$host")
