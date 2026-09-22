@@ -1,5 +1,5 @@
 # =========================================================
-#  SCANNING ENGINES – SMOOTH COUNTER
+#  SCANNING ENGINES – REALTIME COUNTER
 # =========================================================
 
 ANIM_FRAMES=("-R@-------" "--R@------" "---R@-----" "----R@----" "-----R@---" "------R@--" "-------R@-" "--------R@" "-------R@-" "------R@--" "-----R@---" "----R@----" "---R@-----" "--R@------" "-R@-------")
@@ -65,7 +65,7 @@ do_deadlock_wait() {
     esac
 }
 
-# ─── Core Scan Loop (shared by both engines) ─────────────
+# ─── Core Scan Loop ──────────────────────────────────────
 run_scan_core() {
     local MODE="$1"
     shift
@@ -140,7 +140,7 @@ run_scan_core() {
         local batch_size=$(echo "$batch_hosts" | wc -l | tr -d ' ')
         local results=()
 
-        # ── PHASE 1: Test entire batch with smooth live counter ──
+        # ── PHASE 1: Test batch with realtime counter ──
         local tmp_res="$tmp_dir/res.txt"
         local prog="$tmp_dir/prog.bin"
         > "$tmp_res"; > "$prog"
@@ -160,25 +160,12 @@ run_scan_core() {
         fi
         local XPID=$!
 
-        local display=0
         while kill -0 $XPID 2>/dev/null; do
             local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
             [ -z "$real" ] && real=0
 
-            # Move display toward real, one step at a time (smooth)
-            if [ $display -lt $real ]; then
-                local gap=$(( real - display ))
-                if [ $gap -gt 50 ]; then
-                    display=$(( display + gap / 10 ))
-                elif [ $gap -gt 10 ]; then
-                    display=$(( display + 2 ))
-                else
-                    display=$(( display + 1 ))
-                fi
-            fi
-
-            # Animation frame follows the DISPLAY value (smooth)
-            local frame="${ANIM_FRAMES[$(( display % ANIM_LEN ))]}"
+            # Animation frame moves EXACTLY with real count
+            local frame="${ANIM_FRAMES[$(( real % ANIM_LEN ))]}"
 
             local esec=$(( $(date +%s) - start_time ))
             local emin=$((esec / 60)); local erem=$((esec % 60))
@@ -193,36 +180,19 @@ run_scan_core() {
             clear_line
             if [ "$MODE" = "zero" ]; then
                 printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$counter_a$NC | $RED🔥Bugs:$counter_c$NC" \
-                    "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
+                    "$frame" "$real" "$batch_size" "$total_scanned" "$TOTAL"
             else
                 printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$counter_a$NC | $RED❌ DEAD:$counter_b$NC" \
-                    "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
+                    "$frame" "$real" "$batch_size" "$total_scanned" "$TOTAL"
             fi
             printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
             printf "\033[1A"
-            sleep 0.04
+            sleep 0.02
         done
         wait $XPID 2>/dev/null
-
-        # Snap display to real count before revealing results
-        local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
-        [ -z "$real" ] && real=0
-        while [ $display -lt $real ]; do
-            display=$(( display + 1 ))
-            local frame="${ANIM_FRAMES[$(( display % ANIM_LEN ))]}"
-            clear_line
-            if [ "$MODE" = "zero" ]; then
-                printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$counter_a$NC | $RED🔥Bugs:$counter_c$NC" \
-                    "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
-            else
-                printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$counter_a$NC | $RED❌ DEAD:$counter_b$NC" \
-                    "$frame" "$display" "$batch_size" "$total_scanned" "$TOTAL"
-            fi
-            sleep 0.01
-        done
         clear_line
 
-        # ── PHASE 2: Reveal all results fast (no blank lines) ──
+        # ── PHASE 2: Reveal results ──
         while IFS=' ' read -r result host; do
             [ -z "$host" ] && continue
             results+=("$result|$host")
