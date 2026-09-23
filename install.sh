@@ -5,7 +5,7 @@
 
 REPO="https://raw.githubusercontent.com/RSTsquad/rebelst-scanner/main"
 
-echo -e "\033[1;36m[+] Installing R@t Scanner Tool v2.8...\033[0m"
+echo -e "\033[1;36m[+] Installing R@t Scanner Tool...\033[0m"
 echo -e "\033[1;33m[+] Installing dependencies...\033[0m"
 pkg update -y 2>/dev/null
 pkg install -y curl jq coreutils dig 2>/dev/null
@@ -41,5 +41,5 @@ echo -e "\033[1;36m  R@t\033[0m"
 echo -e "\033[1;36m  R@tscan\033[0m"
 echo -e "\033[1;36m  RSTzscan\033[0m"
 echo -e "\033[1;33m[!] Restart Termux or run: source ~/.bashrc\033[0m"
-echo -e "\033[1;33m[!!] Press ENTER to continue...\033[0m"
+echo -e "\033[1;33m[!!] HAPPY HUNTING...\033[0m"
 read
