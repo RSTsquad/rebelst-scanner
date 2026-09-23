@@ -83,7 +83,7 @@ command_hub() {
         echo "  $WHITE  [USER]      : VERIFIED (WELCOME $USERNAME)$NC"
         echo "  $WHITE  [HW-ID]     : $DEVICE_ID$NC"
         echo "  $GREEN  [LICENCE]   : VERIFIED (VALID UNTIL: $EXPIRY_FMT)$NC"
-        echo "  $WHITE  [W.CHNNL]   : https://acesse.one/w-channel-me$NC"
+        echo "  $WHITE  [W.CHNNL]   : https://acesse.one/w-channel1-me$NC"
         echo "  $WHITE  [WEB]       : $RAT_WEB$NC"
         echo "  $AQUA ╚═════════════════════════════════════════════════════════════════╝$NC"
         echo ""
