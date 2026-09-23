@@ -1,5 +1,5 @@
 # =========================================================
-#  SCANNING ENGINES – FINAL
+#  SCANNING ENGINES – FIXED
 # =========================================================
 
 ANIM_FRAMES=("-R@-------" "--R@------" "---R@-----" "----R@----" "-----R@---" "------R@--" "-------R@-" "--------R@" "-------R@-" "------R@--" "-----R@---" "----R@----" "---R@-----" "--R@------" "-R@-------")
@@ -103,7 +103,6 @@ run_scan_zero() {
     echo "$CYAN ║ [!] To pause: press CTRL+C                            ║$NC"
     echo "$CYAN ╚═══════════════════════════════════════════════════════╝$NC"
 
-    # Pre-scan preparation (2.5s)
     echo -n "$YELLOW[+] Preparing scanner... $NC"
     sleep 2
     echo "$GREEN ready$NC"
@@ -114,7 +113,7 @@ run_scan_zero() {
 
     local scan_source="$TARGET_FILE"
     if [ "$START_POS" -gt 0 ]; then
-        tail -n +$((START_POS + 1)) "$TARGET_FILE" > "$tmp_dir/resume_hosts.txt"
+        tail -n +$((START_POS + 1)) "$TARGET_FILE" | tr -d '\r' > "$tmp_dir/resume_hosts.txt"
         scan_source="$tmp_dir/resume_hosts.txt"
     fi
 
@@ -132,14 +131,13 @@ run_scan_zero() {
     for batch_file in "${batches[@]}"; do
         [ $PAUSED -eq 1 ] && break
         batch_idx=$((batch_idx + 1))
-        local batch_hosts=$(cat "$batch_file" | grep -v '^$')
+        local batch_hosts=$(tr -d '\r' < "$batch_file" | grep -v '^$')
         [ -z "$batch_hosts" ] && continue
-        local batch_size=$(echo "$batch_hosts" | grep -c .)
+        local batch_size=$(echo "$batch_hosts" | grep -cve '^\s*$')
         local results=()
-        local batch_done=0
         local anim_pos=0
 
-        # ── PHASE 1: Test whole batch, counter counts 1 → batch_size ──
+        # ── PHASE 1: Test batch, counter JUMPS to real count ──
         local tmp_res="$tmp_dir/res_$batch_idx.txt"
         local prog="$tmp_dir/prog_$batch_idx.bin"
         > "$tmp_res"; > "$prog"
@@ -154,51 +152,44 @@ run_scan_zero() {
         while kill -0 $XPID 2>/dev/null; do
             local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
             [ -z "$real" ] && real=0
-            while [ $batch_done -lt $real ]; do
-                batch_done=$((batch_done + 1))
-                anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
-                local frame="${ANIM_FRAMES[anim_pos]}"
-                local esec=$(( $(date +%s) - start_time ))
-                local emin=$((esec / 60)); local erem=$((esec % 60))
-                local estr=$(printf "%02dm:%02ds" $emin $erem)
-                local etastr="Calculating..."
-                local eta_basis=$((total_scanned + batch_done))
-                if [ $eta_basis -gt 5 ] && [ $esec -gt 5 ]; then
-                    local eta=$(( (TOTAL - eta_basis) * esec / eta_basis ))
-                    local em=$((eta / 60)); local er=$((eta % 60))
-                    etastr=$(printf "%02dm:%02ds" $em $er)
-                fi
-                clear_line
-                printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$zero_rated$NC | $RED🔥Bugs:$bugs$NC" \
-                    "$frame" "$batch_done" "$batch_size" "$total_scanned" "$TOTAL"
-                printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
-                printf "\033[1A"
-            done
-            sleep 0.03
+            anim_pos=$(( (anim_pos + real) % ANIM_LEN ))
+            local frame="${ANIM_FRAMES[anim_pos]}"
+            local esec=$(( $(date +%s) - start_time ))
+            local emin=$((esec / 60)); local erem=$((esec % 60))
+            local estr=$(printf "%02dm:%02ds" $emin $erem)
+            local etastr="Calculating..."
+            local eta_basis=$((total_scanned + real))
+            if [ $eta_basis -gt 5 ] && [ $esec -gt 5 ]; then
+                local eta=$(( (TOTAL - eta_basis) * esec / eta_basis ))
+                local em=$((eta / 60)); local er=$((eta % 60))
+                etastr=$(printf "%02dm:%02ds" $em $er)
+            fi
+            clear_line
+            printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$zero_rated$NC | $RED🔥Bugs:$bugs$NC" \
+                "$frame" "$real" "$batch_size" "$total_scanned" "$TOTAL"
+            printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
+            printf "\033[1A"
+            sleep 0.05
         done
         wait $XPID 2>/dev/null
 
-        # Ensure counter reaches full batch_size before scrolling
-        while [ $batch_done -lt $batch_size ]; do
-            batch_done=$((batch_done + 1))
-            anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
-            local frame="${ANIM_FRAMES[anim_pos]}"
-            clear_line
-            printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$zero_rated$NC | $RED🔥Bugs:$bugs$NC" \
-                "$frame" "$batch_done" "$batch_size" "$total_scanned" "$TOTAL"
-            sleep 0.005
-        done
-
-        # 1s background pause before reveal
-        sleep 1
+        # Snap counter to full batch
+        local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
+        [ -z "$real" ] && real=0
+        clear_line
+        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 0Rated:$zero_rated$NC | $RED🔥Bugs:$bugs$NC" \
+            "${ANIM_FRAMES[$(( real % ANIM_LEN ))]}" "$real" "$batch_size" "$total_scanned" "$TOTAL"
+        sleep 0.5
         clear_line
         printf "\n"
 
-        # ── PHASE 2: Fast scroll all results ──
+        # ── PHASE 2: Fast scroll results (no sleep) ──
         while IFS= read -r line; do
             [ -z "$line" ] && continue
+            line=$(echo "$line" | tr -d '\r')
             local result="${line%% *}"
             local host="${line#* }"
+            host=$(echo "$host" | tr -d '\r')
             [ -z "$host" ] && continue
             results+=("$result|$host")
             local st="${result%|*}"
@@ -209,13 +200,12 @@ run_scan_zero() {
                 BUG)        sc="$RED" ;;
                 *)          sc="$RED" ;;
             esac
-            printf '\r\033[K'
-            printf '%s%s%s -> %s%s%s (HTTP:%s%s%s)\n' "$WHITE" "$host" "$NC" "$sc" "$st" "$NC" "$WHITE" "$code" "$NC"
+            printf '\r\033[K%s%s%s -> %s%s%s (HTTP:%s%s%s)\n' "$WHITE" "$host" "$NC" "$sc" "$st" "$NC" "$WHITE" "$code" "$NC"
             echo "$st $host" >> "$detail_log"
             echo "[$st] $host" >> "$full_log"
         done < "$tmp_res"
 
-        # ── Update counters AFTER reveal ──
+        # Update counters AFTER reveal
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
             st="${st%|*}"
@@ -226,7 +216,7 @@ run_scan_zero() {
                 *)          blocked=$((blocked+1)) ;;
             esac
         done
-        total_scanned=$((total_scanned + batch_size))
+        total_scanned=$((total_scanned + real))
         rm -f "$tmp_res" "$prog"
         [ "$BATCH_ENABLED" != "n" ] && [ "$BATCH_ENABLED" != "N" ] && rm -f "$batch_file"
 
@@ -332,11 +322,10 @@ run_scan_active() {
     for batch_file in "${batches[@]}"; do
         [ $PAUSED -eq 1 ] && break
         batch_idx=$((batch_idx + 1))
-        local batch_hosts=$(cat "$batch_file" | grep -v '^$')
+        local batch_hosts=$(tr -d '\r' < "$batch_file" | grep -v '^$')
         [ -z "$batch_hosts" ] && continue
-        local batch_size=$(echo "$batch_hosts" | grep -c .)
+        local batch_size=$(echo "$batch_hosts" | grep -cve '^\s*$')
         local results=()
-        local batch_done=0
         local anim_pos=0
 
         local tmp_res="$tmp_dir/res_$batch_idx.txt"
@@ -353,48 +342,42 @@ run_scan_active() {
         while kill -0 $XPID 2>/dev/null; do
             local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
             [ -z "$real" ] && real=0
-            while [ $batch_done -lt $real ]; do
-                batch_done=$((batch_done + 1))
-                anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
-                local frame="${ANIM_FRAMES[anim_pos]}"
-                local esec=$(( $(date +%s) - start_time ))
-                local emin=$((esec / 60)); local erem=$((esec % 60))
-                local estr=$(printf "%02dm:%02ds" $emin $erem)
-                local etastr="Calculating..."
-                local eta_basis=$((total_done + batch_done))
-                if [ $eta_basis -gt 5 ] && [ $esec -gt 5 ]; then
-                    local eta=$(( (TOTAL - eta_basis) * esec / eta_basis ))
-                    local em=$((eta / 60)); local er=$((eta % 60))
-                    etastr=$(printf "%02dm:%02ds" $em $er)
-                fi
-                clear_line
-                printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$live$NC | $RED❌ DEAD:$dead$NC" \
-                    "$frame" "$batch_done" "$batch_size" "$total_done" "$TOTAL"
-                printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
-                printf "\033[1A"
-            done
-            sleep 0.03
+            anim_pos=$(( (anim_pos + real) % ANIM_LEN ))
+            local frame="${ANIM_FRAMES[anim_pos]}"
+            local esec=$(( $(date +%s) - start_time ))
+            local emin=$((esec / 60)); local erem=$((esec % 60))
+            local estr=$(printf "%02dm:%02ds" $emin $erem)
+            local etastr="Calculating..."
+            local eta_basis=$((total_done + real))
+            if [ $eta_basis -gt 5 ] && [ $esec -gt 5 ]; then
+                local eta=$(( (TOTAL - eta_basis) * esec / eta_basis ))
+                local em=$((eta / 60)); local er=$((eta % 60))
+                etastr=$(printf "%02dm:%02ds" $em $er)
+            fi
+            clear_line
+            printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$live$NC | $RED❌ DEAD:$dead$NC" \
+                "$frame" "$real" "$batch_size" "$total_done" "$TOTAL"
+            printf "\n⚪Elapsed:%s | ⏳ETA:%s | 👻Pshd:0" "$estr" "$etastr"
+            printf "\033[1A"
+            sleep 0.05
         done
         wait $XPID 2>/dev/null
 
-        while [ $batch_done -lt $batch_size ]; do
-            batch_done=$((batch_done + 1))
-            anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
-            local frame="${ANIM_FRAMES[anim_pos]}"
-            clear_line
-            printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$live$NC | $RED❌ DEAD:$dead$NC" \
-                "$frame" "$batch_done" "$batch_size" "$total_done" "$TOTAL"
-            sleep 0.005
-        done
-
-        sleep 1
+        local real=$(wc -c < "$prog" 2>/dev/null | tr -d ' ')
+        [ -z "$real" ] && real=0
+        clear_line
+        printf "[ %s ] $AQUA⚡$NC %d/%d(⚙️) | $CYAN🌐$NC %d/%d | $GREEN🟢 LIVE:$live$NC | $RED❌ DEAD:$dead$NC" \
+            "${ANIM_FRAMES[$(( real % ANIM_LEN ))]}" "$real" "$batch_size" "$total_done" "$TOTAL"
+        sleep 0.5
         clear_line
         printf "\n"
 
         while IFS= read -r line; do
             [ -z "$line" ] && continue
+            line=$(echo "$line" | tr -d '\r')
             local result="${line%% *}"
             local host="${line#* }"
+            host=$(echo "$host" | tr -d '\r')
             [ -z "$host" ] && continue
             results+=("$result|$host")
             local st="${result%|*}"
@@ -416,7 +399,7 @@ run_scan_active() {
             st="${st%|*}"
             if [ "$st" = "LIVE" ]; then live=$((live+1)); else dead=$((dead+1)); fi
         done
-        total_done=$((total_done + batch_size))
+        total_done=$((total_done + real))
         rm -f "$tmp_res" "$prog"
         [ "$BATCH_ENABLED" != "n" ] && [ "$BATCH_ENABLED" != "N" ] && rm -f "$batch_file"
 
