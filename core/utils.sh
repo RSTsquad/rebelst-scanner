@@ -1,12 +1,9 @@
 # =========================================================
-#  UTILITIES – Device ID, V-KEY, Install, Update, State
+#  UTILITIES
 # =========================================================
 
 get_device_id() {
-    if [ -f "$RAT_DEV_FILE" ]; then
-        cat "$RAT_DEV_FILE"
-        return
-    fi
+    if [ -f "$RAT_DEV_FILE" ]; then cat "$RAT_DEV_FILE"; return; fi
     local DEV_ID=""
     DEV_ID=$(getprop ro.serialno 2>/dev/null | head -c 16)
     if [ -z "$DEV_ID" ] || [ "$DEV_ID" = "unknown" ]; then
@@ -23,22 +20,18 @@ get_device_id() {
 
 verify_vkey() {
     local VKEY="$1"
-    local DEVICE_ID
-    DEVICE_ID=$(get_device_id)
+    local DEVICE_ID=$(get_device_id)
     local PREFIX KEY_DEV_HASH KEY_EXPIRY KEY_CK
     PREFIX=$(echo "$VKEY" | cut -d'-' -f1)
     KEY_DEV_HASH=$(echo "$VKEY" | cut -d'-' -f2)
     KEY_EXPIRY=$(echo "$VKEY" | cut -d'-' -f3)
     KEY_CK=$(echo "$VKEY" | cut -d'-' -f4)
     [ "$PREFIX" != "RST" ] && { echo "INVALID"; return 1; }
-    local CALC_DEV_HASH
-    CALC_DEV_HASH=$(echo -n "$DEVICE_ID$SALT1" | sha256sum | cut -c1-8)
+    local CALC_DEV_HASH=$(echo -n "$DEVICE_ID$SALT1" | sha256sum | cut -c1-8)
     [ "$CALC_DEV_HASH" != "$KEY_DEV_HASH" ] && { echo "WRONG_DEVICE"; return 1; }
-    local CALC_CK
-    CALC_CK=$(echo -n "$KEY_DEV_HASH$KEY_EXPIRY$SALT2" | sha256sum | cut -c1-4)
+    local CALC_CK=$(echo -n "$KEY_DEV_HASH$KEY_EXPIRY$SALT2" | sha256sum | cut -c1-4)
     [ "$CALC_CK" != "$KEY_CK" ] && { echo "INVALID"; return 1; }
-    local TODAY
-    TODAY=$(date +%Y%m%d)
+    local TODAY=$(date +%Y%m%d)
     [ "$TODAY" -gt "$KEY_EXPIRY" ] && { echo "EXPIRED"; return 1; }
     echo "$KEY_EXPIRY"
     return 0
@@ -46,53 +39,87 @@ verify_vkey() {
 
 install_rat() {
     clear
-    echo "$CYAN[+] Installing R@t Scanner Tool v$RAT_VERSION...$NC"
-    echo "$YELLOW[+] Installing dependencies...$NC"
-    pkg update -y 2>/dev/null
-    pkg install -y curl jq coreutils dig 2>/dev/null
-    mkdir -p "$RAT_DIR" "$RAT_CONFIG" "$RAT_RESULTS" "$RAT_LOGS" "$RAT_SAVED"
-    echo "$GREEN[+] curl installed ✓$NC"
-    echo "$GREEN[+] jq installed ✓$NC"
-    echo "$GREEN[+] coreutils installed ✓$NC"
-    echo "$GREEN[+] dig installed ✓$NC"
-    if [ ! -f "$RAT_DEV_FILE" ]; then
-        DEV_ID=$(getprop ro.serialno 2>/dev/null | head -c 16)
-        [ -z "$DEV_ID" ] && DEV_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '-' | head -c 16)
-        [ -z "$DEV_ID" ] && DEV_ID=$(date +%s%N | sha256sum | cut -c1-16)
-        echo "$DEV_ID" > "$RAT_DEV_FILE"
-        chmod 600 "$RAT_DEV_FILE"
-    fi
-    echo "$GREEN[+] Device ID generated ✓$NC"
+    echo "${BLUE}══════════════════════════════════════════════════════════════════════════════════════${NC}"
+    echo "${BLUE}   [R•S•T]🇦🇶 🩵INSTALLATION HUB| THANKS😇 FOR INSTALLING ME R@t 0-SCANNER 💙${NC}"
+    echo "${BLUE}══════════════════════════════════════════════════════════════════════════════════════${NC}"
     echo ""
-    echo "$GREEN[+] Installation successful!$NC"
-    read -p "$YELLOW[!!] Press ENTER to continue...$NC"
+    echo "${YELLOW}[!] STORAGE PERMISION REQUIRED [!]${NC}"
+    echo "${AQUA}   1. A settings screen will open in a moment.${NC}"
+    echo "${AQUA}   2. Scroll down or use search bar/icon to find 'termux'.${NC}"
+    echo "${AQUA}   3. Tap the switch to turn it 'on' (Allowing access to manage all files).${NC}"
+    echo "${AQUA}   4. Then press your phone's back button to return here in termux app.${NC}"
+    echo ""
+    echo "${YELLOW}[*] Opening settings in 6 seconds... please carefully read the steps above!${NC}"
+    sleep 6
+    termux-setup-storage 2>/dev/null
+    sleep 2
+    echo "${GREEN}[+] It appears this action is already set now tool will proceed in 2s...${NC}"
+    sleep 2
+    echo ""
+    echo -n "${YELLOW}[🔒] Enter The tool PIN to proceed: ${NC}"
+    read pin
+    [ "$pin" != "$SCANNER_PIN" ] && { echo "${RED}[!] INCORRECT PIN, CORRECT PIN IS REQUIRED RE ENTER THE CORRECT PIN NOW${NC}"; sleep 3; return; }
+    echo ""
+    echo "${AQUA}[*] Setting up the tool (This may take 1 - 2 minutes)...${NC}"
+    pkg update -y >/dev/null 2>&1
+    pkg install -y curl jq coreutils dig termux-api >/dev/null 2>&1
+    mkdir -p "$RAT_DIR" "$RAT_CONFIG" "$RAT_RESULTS" "$RAT_LOGS" "$RAT_SAVED"
+    echo "${GREEN}[+] Tool framework set successfully✓${NC}"
+    echo "${GREEN}[+] Member login sections for auto-login set✓${NC}"
+    echo ""
+    echo "${AQUA}[📥] Installing dependencies...${NC}"
+    echo "${GREEN}[+] Tool folders set✓${NC}"
+    echo "${GREEN}[+] curl installed✓${NC}"
+    echo "${GREEN}[+] jq installed✓${NC}"
+    echo "${GREEN}[+] coreutils installed✓${NC}"
+    echo "${GREEN}[+] dig installed✓${NC}"
+    echo "${GREEN}[+] termux-api installed✓${NC}"
+    if [ ! -f "$RAT_DEV_FILE" ]; then get_device_id >/dev/null; fi
+    cp "$0" "$RAT_DIR/rat.sh" 2>/dev/null
+    chmod +x "$RAT_DIR/rat.sh" 2>/dev/null
+    ln -sf "$RAT_DIR/rat.sh" "$PREFIX/bin/R@t" 2>/dev/null
+    ln -sf "$RAT_DIR/rat.sh" "$PREFIX/bin/R@tscan" 2>/dev/null
+    ln -sf "$RAT_DIR/rat.sh" "$PREFIX/bin/RSTzscan" 2>/dev/null
+    if ! grep -q "R@t=" ~/.bashrc 2>/dev/null; then
+        echo 'alias R@t="bash ~/R@t/rat.sh --run"' >> ~/.bashrc
+        echo 'alias R@tscan="bash ~/R@t/rat.sh --run"' >> ~/.bashrc
+        echo 'alias RSTzscan="bash ~/R@t/rat.sh --run"' >> ~/.bashrc
+    fi
+    echo ""
+    echo "${GREEN}[++] Tool is installed and set successfully✓${NC}"
+    echo ""
+    echo "${YELLOW}[*] You can now launch the scanner from anywhere by typing any of these:${NC}"
+    echo ""
+    echo "${YELLOW}     R@t${NC}"
+    echo "${YELLOW}     R@tscan${NC}"
+    echo "${YELLOW}     RSTzscan${NC}"
+    echo ""
+    read -p "${YELLOW}~R@enter: ${NC}" cmd
+    case "$cmd" in
+        R@t|R@tscan|RSTzscan|RSTscan|R@scan)
+            exec bash "$RAT_DIR/rat.sh" --run ;;
+        *) echo "${YELLOW}[*] Run any of the commands to start the tool.${NC}" ;;
+    esac
 }
 
 update_tool() {
-    echo "$CYAN[+] Checking for updates...$NC"
+    echo "${AQUA}[+] Checking for updates...${NC}"
     local REMOTE_VERSION
     REMOTE_VERSION=$(curl -s --max-time 10 "$GITHUB_RAW/core/config.sh" | grep -m1 'RAT_VERSION="' | cut -d'"' -f2)
     if [ -z "$REMOTE_VERSION" ]; then
-        echo "$RED[!] Could not fetch remote version. Check internet.$NC"
-        sleep 2
-        return
+        echo "${RED}[!] Could not fetch remote version.${NC}"; sleep 2; return
     fi
     if [ "$REMOTE_VERSION" = "$RAT_VERSION" ]; then
-        echo "$GREEN[+] You have the latest version ($RAT_VERSION).$NC"
-        sleep 2
-        return
+        echo "${GREEN}[+] You have the latest version ($RAT_VERSION).${NC}"; sleep 2; return
     fi
-    echo "$YELLOW[!] New version available: $REMOTE_VERSION (yours: $RAT_VERSION)$NC"
-    echo "$YELLOW[!] Downloading update...$NC"
-    for file in rat.sh core/config.sh core/utils.sh core/ui.sh core/login.sh core/scanner.sh; do
+    echo "${YELLOW}[!] New version: $REMOTE_VERSION (yours: $RAT_VERSION)${NC}"
+    echo "${YELLOW}[!] Downloading update...${NC}"
+    for file in rat.sh install.sh core/config.sh core/utils.sh core/ui.sh core/login.sh core/scanner.sh; do
         curl -s -o "$RAT_DIR/$file" "$GITHUB_RAW/$file"
-        echo "$GREEN[+] $file updated$NC"
     done
-    chmod +x "$RAT_DIR/rat.sh"
-    chmod +x "$RAT_DIR/core"/*.sh
-    echo ""
-    echo "$GREEN[+] Update applied successfully!$NC"
-    echo "$YELLOW[!] Restart R@t to use new version.$NC"
+    chmod +x "$RAT_DIR/rat.sh" 2>/dev/null
+    chmod +x "$RAT_DIR/core"/*.sh 2>/dev/null
+    echo "${GREEN}[+] Update applied. Please restart the tool.${NC}"
     sleep 3
     exit 0
 }
@@ -100,33 +127,22 @@ update_tool() {
 detect_carrier() {
     local active_sim=$(getprop persist.radio.data_sim 2>/dev/null)
     local carrier="Unknown"
-    if [ "$active_sim" = "0" ] || [ -z "$active_sim" ]; then
-        local val=$(getprop gsm.sim.operator.alpha 2>/dev/null | head -c 30)
-        case $(echo "$val" | tr '[:upper:]' '[:lower:]') in
-            *vodacom*|*voda*) carrier="Vodacom" ;;
-            *mtn*) carrier="MTN" ;;
-            *cell*) carrier="CellC" ;;
-            *telkom*|*8ta*) carrier="Telkom" ;;
-            *rain*) carrier="Rain" ;;
-        esac
-    else
-        local val=$(getprop gsm.sim.operator.alpha 2>/dev/null | head -c 30)
-        case $(echo "$val" | tr '[:upper:]' '[:lower:]') in
-            *vodacom*|*voda*) carrier="Vodacom" ;;
-            *mtn*) carrier="MTN" ;;
-            *cell*) carrier="CellC" ;;
-            *telkom*|*8ta*) carrier="Telkom" ;;
-            *rain*) carrier="Rain" ;;
-        esac
-    fi
+    local val=$(getprop gsm.sim.operator.alpha 2>/dev/null | head -c 30)
+    case $(echo "$val" | tr '[:upper:]' '[:lower:]') in
+        *vodacom*|*voda*) carrier="VODACOM" ;;
+        *mtn*) carrier="MTN" ;;
+        *cell*) carrier="CELLC" ;;
+        *telkom*|*8ta*) carrier="TELKOM" ;;
+        *rain*) carrier="RAIN" ;;
+    esac
     if [ "$carrier" = "Unknown" ]; then
         local num=$(getprop gsm.sim.operator.numeric 2>/dev/null)
         case "$num" in
-            65501) carrier="Vodacom" ;;
+            65501) carrier="VODACOM" ;;
             65510) carrier="MTN" ;;
-            65507) carrier="CellC" ;;
-            65502|65506) carrier="Telkom" ;;
-            65536) carrier="Rain" ;;
+            65507) carrier="CELLC" ;;
+            65502|65506) carrier="TELKOM" ;;
+            65536) carrier="RAIN" ;;
         esac
     fi
     echo "$carrier"
@@ -142,9 +158,12 @@ resolve_host() {
         case $m in
             3) resolvers+=("1.1.1.1" "1.0.0.1") ;;
             4) resolvers+=("8.8.8.8" "8.8.4.4") ;;
-            *) ;;
         esac
     done
+    # If input is already an IP, return it
+    if [[ "$domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "$domain"; return 0
+    fi
     for ns in "${resolvers[@]}"; do
         ip=$(dig +short +timeout=2 +tries=1 @"$ns" "$domain" A 2>/dev/null | head -1)
         [ -n "$ip" ] && { echo "$ip"; return 0; }
@@ -156,11 +175,9 @@ resolve_host() {
 }
 
 save_scan_state() {
-    local state_file="$RAT_CONFIG/scan_state_$(date +%Y%m%d_%H%M%S)_$RANDOM.json"
+    local state_file="$RAT_CONFIG/PAUSED_${CARRIER}_$(date +%d_%Y%m%d_%H%M).txt"
     local elapsed_sec=0
-    if [ -n "$start_time" ] && [ "$start_time" -gt 0 ] 2>/dev/null; then
-        elapsed_sec=$(( $(date +%s) - start_time ))
-    fi
+    [ -n "$start_time" ] && [ "$start_time" -gt 0 ] 2>/dev/null && elapsed_sec=$(( $(date +%s) - start_time ))
     cat > "$state_file" << EOF
 {
     "target_file": "$TARGET_FILE",
@@ -176,6 +193,7 @@ save_scan_state() {
     "blocked": ${blocked:-0},
     "billed": ${billed:-0},
     "bugs": ${bugs:-0},
+    "pshd": ${pshd:-0},
     "elapsed_sec": $elapsed_sec,
     "deadlock_mode": "$DEADLOCK_MODE",
     "scan_mode": "$SCAN_MODE",
@@ -183,39 +201,31 @@ save_scan_state() {
     "batch_enabled": "$BATCH_ENABLED"
 }
 EOF
+    # Save remaining hosts to same file location as paused text
+    local remaining_file="${state_file%.txt}_hosts.txt"
+    tail -n +$(( ${total_scanned:-0} + 1 )) "$TARGET_FILE" > "$remaining_file" 2>/dev/null
     echo "$state_file"
 }
 
 list_paused_scans() {
+    local dir="$1"
     local count=0
     local files=()
-    for f in "$RAT_CONFIG"/scan_state_*.json; do
+    for f in "$dir"/PAUSED_*.txt; do
         [ -f "$f" ] && { count=$((count+1)); files+=("$f"); }
     done
     [ $count -eq 0 ] && return 1
-    echo "$GREEN [+] Found $count paused scan(s):$NC"
-    local idx=1
+    echo "${YELLOW}[?] UNFINISHED 0-RATED SCANS DETECTED IN THIS FOLDER!${NC}"
+    local shown=0
     for f in "${files[@]}"; do
-        local target=$(jq -r '.target_file' "$f" 2>/dev/null)
-        local scanned=$(jq -r '.total_scanned' "$f" 2>/dev/null)
-        local total=$(jq -r '.total' "$f" 2>/dev/null)
-        local timestamp=$(basename "$f" | sed 's/scan_state_//' | sed 's/\.json//')
-        local carrier=$(jq -r '.carrier' "$f" 2>/dev/null)
-        echo "  ${MAGENTA}[$idx]${NC} $(basename "$target") - $scanned / $total hosts ($carrier) saved at $timestamp"
-        idx=$((idx+1))
+        shown=$((shown+1))
+        [ $shown -gt 4 ] && break
+        echo "${AQUA} [$shown] Resume : $(basename "$f")${NC}"
     done
+    echo "${AQUA} [M] Manual : Type the name of a different paused file${NC}"
+    echo "${AQUA} [Enter]     : Start a brand new file${NC}"
+    echo -n "${YELLOW}~R@enter: ${NC}"
+    read resume_choice
+    echo "$resume_choice"
     return 0
-}
-
-show_next_prompt() {
-    echo ""
-    echo "$CYAN ╔═•WHAT'S NEXT?•════════════════════════════$NC"
-    echo "${MAGENTA} [R]eturn to hub  [E]xit R0scan${NC}"
-    echo "$CYAN ╚═══════════════════════════════════════════$NC"
-    printf "~OPTION: "
-    read next_choice
-    case "$next_choice" in
-        [rR]*) return 0 ;;
-        *) exit 0 ;;
-    esac
 }
