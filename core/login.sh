@@ -4,20 +4,17 @@
 
 scanner_login() {
     clear
-    echo "$CYAN ╔════════════════════════════════════════════════════╗$NC"
-    echo "$CYAN ║            ZERO-RATED SCANNER LOGIN               ║$NC"
-    echo "$CYAN ╚════════════════════════════════════════════════════╝$NC"
+    echo "${GREEN}══════════════════════════════════════════════════════════════════${NC}"
+    echo "${GREEN}              💙 REBELS LOGIN PG🩵${NC}"
+    echo "${GREEN}══════════════════════════════════════════════════════════════════${NC}"
     echo ""
 
     if [ -f "$RAT_KEY_FILE" ] && [ -f "$RAT_USER_FILE" ]; then
-        local SAVED_KEY
-        SAVED_KEY=$(cat "$RAT_KEY_FILE")
-        local RESULT
-        RESULT=$(verify_vkey "$SAVED_KEY")
+        local SAVED_KEY=$(cat "$RAT_KEY_FILE")
+        local RESULT=$(verify_vkey "$SAVED_KEY")
         if [ "$RESULT" != "INVALID" ] && [ "$RESULT" != "WRONG_DEVICE" ] && [ "$RESULT" != "EXPIRED" ]; then
-            local USERNAME
-            USERNAME=$(cat "$RAT_USER_FILE")
-            echo "$GREEN[!] ACCESS GRANTED AUTOMATICALLY LOGGING IN!!$NC"
+            local USERNAME=$(cat "$RAT_USER_FILE")
+            echo "${GREEN}[!] ACCESS GRANTED AUTOMATICALLY LOGGING IN!!${NC}"
             sleep 1
             command_hub "$USERNAME"
             return
@@ -26,38 +23,31 @@ scanner_login() {
         fi
     fi
 
-    printf "~ENTER USERNAME (e.g Sibusiso N): "
+    local DEVICE_ID=$(get_device_id)
+    echo "${WHITE}YOU TERMUX DEVICE ID: ${GREEN}$DEVICE_ID${NC}"
+    echo ""
+    echo "${AQUA}SEND THE TERMUX DEVICE ID TO THE R•S•T ADMINS or SIMPLY GO TO OUR WEBSITE"
+    echo "ON THE WEB CLICK MENU ICON(☰) AND GO TO HUNTING-HUB PAGE AND LOOK FOR"
+    echo "V-KEY(VERIFICATION-KEY) THEN YOU PUT YOUR USERNAME AND YOUR TERMUX DEVICE ID"
+    echo "THEN CLICK GENERATE WAIT FEW SECONDS WHILE IT IS GENERATING THEREAFTER"
+    echo "YOU'LL BE GIVEN YOUR PM-KEY/V-KEY AND COMEBACK AND PASTE IT HERE${NC}"
+    echo ""
+    printf "${YELLOW}ENTER USERNAME: ${NC}"
     read USERNAME
-    [ -z "$USERNAME" ] && { echo "$RED[!] Username required$NC"; sleep 2; return; }
-
-    printf "~ENTER PIN: "
-    read pin
-    [ "$pin" != "$SCANNER_PIN" ] && { echo "$RED[!] INCORRECT PIN$NC"; sleep 2; return; }
-
-    local DEVICE_ID
-    DEVICE_ID=$(get_device_id)
-    echo ""
-    echo "$GREEN[!] DEVICE ID: $DEVICE_ID$NC"
-    echo "$GREEN[!] GET YOUR PM KEY HERE: $RAT_WEB$NC"
-    echo ""
-
-    printf "~ENTER PM-KEY: "
+    [ -z "$USERNAME" ] && { echo "${RED}[!] Username required${NC}"; sleep 2; return; }
+    printf "${YELLOW}ENTER PM/V-KEY: ${NC}"
     read vkey
-    local RESULT
-    RESULT=$(verify_vkey "$vkey")
+    local RESULT=$(verify_vkey "$vkey")
     case "$RESULT" in
-        "INVALID")
-            echo "$RED[!] INCORRECT V-KEY!$NC"; sleep 3; return ;;
-        "WRONG_DEVICE")
-            echo "$RED[!] INVALID: Different device!$NC"; sleep 3; return ;;
-        "EXPIRED")
-            echo "$RED[!] INVALID: Key expired!$NC"; sleep 3; return ;;
+        "INVALID") echo "${RED}[!] INCORRECT V-KEY!${NC}"; sleep 3; return ;;
+        "WRONG_DEVICE") echo "${RED}[!] INVALID: Different device!${NC}"; sleep 3; return ;;
+        "EXPIRED") echo "${RED}[!] INVALID: Key expired!${NC}"; sleep 3; return ;;
         *)
             echo "$vkey" > "$RAT_KEY_FILE"
             echo "$USERNAME" > "$RAT_USER_FILE"
             chmod 600 "$RAT_KEY_FILE" "$RAT_USER_FILE"
             echo ""
-            echo "$GREEN[+] ACCESS GRANTED. KEY SAVED FOR AUTO-LOGIN!$NC"
+            echo "${GREEN}[+] [+]ACCESS GRANTED. KEY SAVED FOR AUTO-LOGIN! WELCOME TO PM USER${NC}"
             sleep 2
             command_hub "$USERNAME"
             ;;
@@ -66,68 +56,50 @@ scanner_login() {
 
 command_hub() {
     local USERNAME="$1"
-    local DEVICE_ID
-    DEVICE_ID=$(get_device_id)
-    local VKEY
-    VKEY=$(cat "$RAT_KEY_FILE")
-    local EXPIRY
-    EXPIRY=$(echo "$VKEY" | cut -d'-' -f3)
-    local YR MO DY
-    YR=$(echo "$EXPIRY" | cut -c1-4)
-    MO=$(echo "$EXPIRY" | cut -c5-6)
-    DY=$(echo "$EXPIRY" | cut -c7-8)
-    local EXPIRY_FMT="$YR-$MO-$DY"
+    local DEVICE_ID=$(get_device_id)
+    local VKEY=$(cat "$RAT_KEY_FILE")
+    local EXPIRY=$(echo "$VKEY" | cut -d'-' -f3)
+    local EXPIRY_FMT="$(echo "$EXPIRY" | cut -c1-4)-$(echo "$EXPIRY" | cut -c5-6)-$(echo "$EXPIRY" | cut -c7-8)"
 
     while true; do
-        show_banner
-        echo "  $WHITE  [USER]      : VERIFIED (WELCOME $USERNAME)$NC"
-        echo "  $WHITE  [HW-ID]     : $DEVICE_ID$NC"
-        echo "  $GREEN  [LICENCE]   : VERIFIED (VALID UNTIL: $EXPIRY_FMT)$NC"
-        echo "  $WHITE  [W.CHNNL]   : https://acesse.one/w-channel1-me$NC"
-        echo "  $WHITE  [WEB]       : $RAT_WEB$NC"
-        echo "  $AQUA ╚═════════════════════════════════════════════════════════════════╝$NC"
-        echo ""
-        echo "  $BOLD ╔═•COMMAND HUB•════════════════════════════$NC"
-        echo "  ${MAGENTA}│1 START EXECUTION${NC}"
-        echo "  ${MAGENTA}│2 LICENCE RENEWAL${NC}"
-        echo "  ${MAGENTA}│3 GUIDANCE${NC}"
-        echo "  ${MAGENTA}│4 UPDATE TO NEWEST VERSION${NC}"
-        echo "  ${MAGENTA}│5 UNINSTALL TOOL${NC}"
-        echo "  ${MAGENTA}│6 EXIT${NC}"
-        echo "  $BOLD ╚════════════════════════════════════════$NC"
-        echo ""
-        printf "~OPTION: "
+        show_header_with_user "$USERNAME" "$DEVICE_ID" "$EXPIRY_FMT"
+        echo "${MAGENTA}╔═•COMMAND HUB•══════════════════════════════════════════════════${NC}"
+        echo "${AQUA}║ [S]TART EXECUTION${NC}"
+        echo "${AQUA}║ [L]ICENCE RENEWAL${NC}"
+        echo "${AQUA}║ [G]UIDANCE${NC}"
+        echo "${AQUA}║ [U]PDATE TO NEWEST VERSION${NC}"
+        echo "${AQUA}║ [X]UNINSTALL TOOL${NC}"
+        echo "${AQUA}║ [E]XIT${NC}"
+        echo "${MAGENTA}╚═══════════════════════════════════════════════════════════════${NC}"
+        printf "${YELLOW}~R@enter: ${NC}"
         read hub_choice
         case "$hub_choice" in
-            1) start_execution ;;
-            2) echo "$YELLOW Go to $RAT_WEB to renew$NC"; sleep 3 ;;
-            3) show_guidance ;;
-            4) update_tool ;;
-            5) echo "$RED[!] Uninstalling...$NC"; rm -rf "$RAT_DIR"; rm -f "$PREFIX/bin/R@t" "$PREFIX/bin/R@tscan" "$PREFIX/bin/RSTzscan"; echo "$GREEN[+] Uninstalled.$NC"; exit 0 ;;
-            6) echo "$CYAN Goodbye!$NC"; exit 0 ;;
-            *) echo "$RED Invalid option$NC"; sleep 1 ;;
+            s|S) start_execution ;;
+            l|L) echo "${YELLOW}Go to $RAT_WEB to renew${NC}"; sleep 3 ;;
+            g|G) show_guidance ;;
+            u|U) update_tool ;;
+            x|X) echo "${RED}[!] Uninstalling...${NC}"; rm -rf "$RAT_DIR"; rm -f "$PREFIX/bin/R@t" "$PREFIX/bin/R@tscan" "$PREFIX/bin/RSTzscan"; echo "${GREEN}[+] Uninstalled.${NC}"; exit 0 ;;
+            e|E) echo "${CYAN}Goodbye!${NC}"; exit 0 ;;
+            *) echo "${RED}Invalid option${NC}"; sleep 1 ;;
         esac
     done
 }
 
 main_menu() {
-    if [ ! -f "$RAT_DIR/rat.sh" ]; then
-        echo "$RED[!] Tool not installed properly.$NC"
-        exit 1
-    fi
+    [ ! -f "$RAT_DIR/rat.sh" ] && { echo "${RED}[!] Tool not installed.${NC}"; exit 1; }
     scanner_login
 }
 
 start_execution() {
     echo ""
-    echo "$CYAN ╔═•Target directory where to look & save files•═══════$NC"
-    echo "${MAGENTA}│1 R@t folder (Default)${NC}"
-    echo "${MAGENTA}│2 Download folder${NC}"
-    echo "${MAGENTA}│3 Current tool folder${NC}"
-    echo "${MAGENTA}│4 Custom path (inside current folder)${NC}"
-    echo "${MAGENTA}│5 Custom path (inside phone storage)${NC}"
-    echo "$CYAN ╚════════════════════════════════════════════════════$NC"
-    printf "~OPTION: "
+    echo "${MAGENTA}╔═•Target directory where to look for & save files•═════════════${NC}"
+    echo "${AQUA}║ [1]R@t folder (Default)${NC}"
+    echo "${AQUA}║ [2]Download folder${NC}"
+    echo "${AQUA}║ [3]Current tool folder${NC}"
+    echo "${AQUA}║ [4]Custom path(inside current folder)${NC}"
+    echo "${AQUA}║ [5]Custom path(inside phone storage)${NC}"
+    echo "${MAGENTA}╚═══════════════════════════════════════════════════════════════${NC}"
+    printf "${YELLOW}~R@enter: ${NC}"
     read dir_choice
 
     local WORK_DIR="$RAT_SAVED"
@@ -135,256 +107,211 @@ start_execution() {
         1) WORK_DIR="$RAT_SAVED" ;;
         2) WORK_DIR="/storage/emulated/0/Download" ;;
         3) WORK_DIR="$PWD" ;;
-        4) printf "Enter folder name: "; read custom_dir; WORK_DIR="$PWD/$custom_dir"; mkdir -p "$WORK_DIR" ;;
-        5) printf "Enter full path: "; read custom_path; WORK_DIR="$custom_path" ;;
+        4) printf "Enter folder name: "; read cd; WORK_DIR="$PWD/$cd"; mkdir -p "$WORK_DIR" ;;
+        5) printf "Enter full path: "; read cp; WORK_DIR="$cp" ;;
     esac
     mkdir -p "$WORK_DIR"
-    echo "$GREEN [+] Working directory set to: $WORK_DIR$NC"
-    sleep 0.5
-    echo ""
+    echo "${GREEN}[+] Working directory set to:$WORK_DIR${NC}"
 
-    # Paused scans check
-    if list_paused_scans; then
-        echo ""
-        echo "${MAGENTA}[R] Resume a paused scan (enter number)${NC}"
-        echo "${MAGENTA}[N] Start a brand new scan${NC}"
-        echo ""
-        printf "~OPTION: "
-        read resume_choice
-        if [[ "$resume_choice" =~ ^[0-9]+$ ]]; then
+    # Paused scans
+    local RESUME_FILE=""
+    local resume_out=$(list_paused_scans "$WORK_DIR")
+    if [ -n "$resume_out" ]; then
+        local resume_choice=$(echo "$resume_out" | tail -1)
+        if [[ "$resume_choice" =~ ^[1-4]$ ]]; then
             local idx=1
-            local selected_file=""
-            for f in "$RAT_CONFIG"/scan_state_*.json; do
-                if [ -f "$f" ]; then
-                    if [ $idx -eq "$resume_choice" ]; then
-                        selected_file="$f"
-                        break
-                    fi
-                    idx=$((idx+1))
-                fi
+            for f in "$WORK_DIR"/PAUSED_*.txt; do
+                [ -f "$f" ] && [ $idx -eq "$resume_choice" ] && { RESUME_FILE="$f"; break; }
+                idx=$((idx+1))
             done
-            if [ -n "$selected_file" ]; then
-                R_TARGET=$(jq -r '.target_file' "$selected_file")
-                R_POS=$(jq -r '.total_scanned' "$selected_file")
-                R_TOTAL=$(jq -r '.total' "$selected_file")
-                R_TIMEOUT=$(jq -r '.timeout' "$selected_file")
-                R_BATCH=$(jq -r '.batch' "$selected_file")
-                R_THREADS=$(jq -r '.threads' "$selected_file")
-                R_CARRIER=$(jq -r '.carrier' "$selected_file")
-                R_WORKDIR=$(jq -r '.work_dir' "$selected_file")
-                R_TAG=$(jq -r '.tag' "$selected_file")
-                R_ZR=$(jq -r '.zero_rated' "$selected_file")
-                R_BLK=$(jq -r '.blocked' "$selected_file")
-                R_BIL=$(jq -r '.billed' "$selected_file")
-                R_BUGS=$(jq -r '.bugs' "$selected_file" 2>/dev/null || echo 0)
-                R_ELAPSED=$(jq -r '.elapsed_sec' "$selected_file" 2>/dev/null || echo 0)
-                R_DEADLOCK=$(jq -r '.deadlock_mode' "$selected_file")
-                R_SCANMODE=$(jq -r '.scan_mode' "$selected_file")
-                R_DNS=$(jq -r '.dns_mode' "$selected_file")
-                R_BATCH_EN=$(jq -r '.batch_enabled' "$selected_file")
-                rm -f "$selected_file"
-                export RESUME_ELAPSED="$R_ELAPSED"
-                echo "$GREEN [+] Resuming from $R_POS / $R_TOTAL$NC"
-                sleep 0.5
-                if [ "$R_SCANMODE" = "1" ] || [ "$R_SCANMODE" = "2" ]; then
-                    run_scan_zero "$R_TARGET" "$R_TOTAL" "$R_TIMEOUT" "$R_BATCH" "$R_CARRIER" "$R_WORKDIR" "$R_TAG" "$R_THREADS" "$R_DEADLOCK" "$R_POS" "$R_ZR" "$R_BLK" "$R_BIL" "$R_DNS" "$R_BATCH_EN" "$R_SCANMODE"
-                else
-                    run_scan_active "$R_TARGET" "$R_TOTAL" "$R_TIMEOUT" "$R_BATCH" "$R_CARRIER" "$R_WORKDIR" "$R_TAG" "$R_THREADS" "$R_DEADLOCK" "$R_DNS" "$R_BATCH_EN" "$R_SCANMODE"
-                fi
-                return
-            else
-                echo "$RED Invalid selection.$NC"; sleep 1; return
-            fi
+        elif [ "$resume_choice" = "m" ] || [ "$resume_choice" = "M" ]; then
+            printf "Enter paused file name: "; read pfile
+            [ -f "$WORK_DIR/$pfile" ] && RESUME_FILE="$WORK_DIR/$pfile"
         fi
     fi
 
-    echo "$CYAN •TARGET INPUT MODE•$NC"
-    echo " - Type a single host (e.g host.com)"
-    echo " - Type multiple hosts separated by space"
-    echo " - Type a filename (e.g 0host.txt)"
-    echo " - Type 'nano' to open in-line edit"
-    echo " - Or Auto detect files in current folder to choose (default)"
+    if [ -n "$RESUME_FILE" ]; then
+        R_TARGET=$(jq -r '.target_file' "$RESUME_FILE" 2>/dev/null)
+        local R_HOSTS="${RESUME_FILE%.txt}_hosts.txt"
+        [ -f "$R_HOSTS" ] && R_TARGET="$R_HOSTS"
+        R_POS=$(jq -r '.total_scanned' "$RESUME_FILE")
+        R_TOTAL=$(jq -r '.total' "$RESUME_FILE")
+        R_TIMEOUT=$(jq -r '.timeout' "$RESUME_FILE")
+        R_BATCH=$(jq -r '.batch' "$RESUME_FILE")
+        R_THREADS=$(jq -r '.threads' "$RESUME_FILE")
+        R_CARRIER=$(jq -r '.carrier' "$RESUME_FILE")
+        R_WORKDIR=$(jq -r '.work_dir' "$RESUME_FILE")
+        R_TAG=$(jq -r '.tag' "$RESUME_FILE")
+        R_ZR=$(jq -r '.zero_rated' "$RESUME_FILE")
+        R_BLK=$(jq -r '.blocked' "$RESUME_FILE")
+        R_BIL=$(jq -r '.billed' "$RESUME_FILE")
+        R_BUGS=$(jq -r '.bugs' "$RESUME_FILE" 2>/dev/null || echo 0)
+        R_ELAPSED=$(jq -r '.elapsed_sec' "$RESUME_FILE")
+        R_DEADLOCK=$(jq -r '.deadlock_mode' "$RESUME_FILE")
+        R_SCANMODE=$(jq -r '.scan_mode' "$RESUME_FILE")
+        R_DNS=$(jq -r '.dns_mode' "$RESUME_FILE")
+        R_BATCH_EN=$(jq -r '.batch_enabled' "$RESUME_FILE")
+        rm -f "$RESUME_FILE"
+        export RESUME_ELAPSED="$R_ELAPSED"
+        echo "${GREEN}[+] Resuming from $R_POS / $R_TOTAL${NC}"
+        sleep 1
+        if [ "$R_SCANMODE" = "1" ] || [ "$R_SCANMODE" = "2" ]; then
+            run_scan_zero "$R_TARGET" "$R_TOTAL" "$R_TIMEOUT" "$R_BATCH" "$R_CARRIER" "$R_WORKDIR" "$R_TAG" "$R_THREADS" "$R_DEADLOCK" "$R_POS" "$R_ZR" "$R_BLK" "$R_BIL" "$R_DNS" "$R_BATCH_EN" "$R_SCANMODE"
+        else
+            run_scan_active "$R_TARGET" "$R_TOTAL" "$R_TIMEOUT" "$R_BATCH" "$R_CARRIER" "$R_WORKDIR" "$R_TAG" "$R_THREADS" "$R_DEADLOCK" "$R_DNS" "$R_BATCH_EN" "$R_SCANMODE"
+        fi
+        return
+    fi
+
     echo ""
-    printf "~OPTION: "
+    echo "${YELLOW}• TARGET INPUT MODE•${NC}"
+    echo "${AQUA}- Type a single host (e.g host.com)${NC}"
+    echo "${AQUA}- Type multiple hosts seperated by space${NC}"
+    echo "${AQUA}- Type a filename(e.g 0host.txt)${NC}"
+    echo "${AQUA}- Type 'nano' to open in-line edit${NC}"
+    echo "${AQUA}- Or Auto detect files in current folder to choose(default)${NC}"
+    echo ""
+    printf "${GREEN}SNI HOST(S) OR HOSTS FILE: ${NC}"
     read target_input
 
     local TARGET_FILE=""
-    # ORDER MATTERS – check .txt filename FIRST, then file existence, then spaces, then single host
     if [ "$target_input" = "nano" ]; then
         TARGET_FILE="$WORK_DIR/scan_targets.txt"
         nano "$TARGET_FILE"
     elif [[ "$target_input" == *.txt ]]; then
-        # Filename (.txt) – check in WORK_DIR first, then current dir
-        if [ -f "$WORK_DIR/$target_input" ]; then
-            TARGET_FILE="$WORK_DIR/$target_input"
-        elif [ -f "$target_input" ]; then
-            TARGET_FILE="$target_input"
-        else
-            echo "$RED[!] File '$target_input' not found.$NC"
-            echo "$YELLOW[!] Files available in $WORK_DIR:$NC"
-            for f in "$WORK_DIR"/*.txt; do [ -f "$f" ] && echo "    $(basename "$f")"; done
-            sleep 3; return
-        fi
+        if [ -f "$WORK_DIR/$target_input" ]; then TARGET_FILE="$WORK_DIR/$target_input"
+        elif [ -f "$target_input" ]; then TARGET_FILE="$target_input"
+        else echo "${RED}[!] File '$target_input' not found.${NC}"; sleep 2; return; fi
     elif [ -f "$WORK_DIR/$target_input" ]; then
         TARGET_FILE="$WORK_DIR/$target_input"
     elif echo "$target_input" | grep -q ' '; then
-        # Multiple hosts separated by space
-        TARGET_FILE="$WORK_DIR/temp_targets.txt"
-        > "$TARGET_FILE"
+        TARGET_FILE="$WORK_DIR/temp_targets.txt"; > "$TARGET_FILE"
         for host in $target_input; do echo "$host" >> "$TARGET_FILE"; done
     elif echo "$target_input" | grep -q '\.'; then
-        # Single host
-        TARGET_FILE="$WORK_DIR/temp_targets.txt"
-        > "$TARGET_FILE"
-        echo "$target_input" > "$TARGET_FILE"
+        TARGET_FILE="$WORK_DIR/temp_targets.txt"; > "$TARGET_FILE"; echo "$target_input" > "$TARGET_FILE"
     else
-        # Auto-detect
-        echo "$YELLOW Auto-detecting .txt files in $WORK_DIR...$NC"
-        local files=()
-        for f in "$WORK_DIR"/*.txt; do [ -f "$f" ] && files+=("$f"); done
+        echo "${YELLOW}Auto-detecting files in $WORK_DIR...${NC}"
+        local files=(); for f in "$WORK_DIR"/*.txt; do [ -f "$f" ] && files+=("$f"); done
         if [ ${#files[@]} -eq 0 ]; then
-            echo "$RED [!] No .txt files found.$NC"
-            TARGET_FILE="$WORK_DIR/scan_targets.txt"
-            nano "$TARGET_FILE"
+            echo "${RED}[!] No files.${NC}"; return
+        fi
+        local i=1
+        for f in "${files[@]}"; do
+            [ $i -gt 4 ] && break
+            echo "  [${AQUA}$i${NC}] $(basename "$f")"; i=$((i+1))
+        done
+        printf "${YELLOW}~R@enter: ${NC}"; read fc
+        if [[ "$fc" =~ ^[0-9]+$ ]] && [ "$fc" -ge 1 ] && [ "$fc" -le ${#files[@]} ]; then
+            TARGET_FILE="${files[$((fc-1))]}"
         else
-            local i=1
-            for f in "${files[@]}"; do echo "  [${MAGENTA}$i${NC}] $(basename "$f")"; i=$((i+1)); done
-            printf "~OPTION: "
-            read file_choice
-            if [[ "$file_choice" =~ ^[0-9]+$ ]] && [ "$file_choice" -ge 1 ] && [ "$file_choice" -le ${#files[@]} ]; then
-                TARGET_FILE="${files[$((file_choice-1))]}"
-            else
-                TARGET_FILE="${files[0]}"
-            fi
+            [ -f "$WORK_DIR/$fc" ] && TARGET_FILE="$WORK_DIR/$fc" || TARGET_FILE="${files[0]}"
         fi
     fi
 
-    if [ -z "$TARGET_FILE" ] || [ ! -f "$TARGET_FILE" ]; then
-        echo "$RED[!] No valid target file.$NC"; sleep 2; return
-    fi
+    [ -z "$TARGET_FILE" ] || [ ! -f "$TARGET_FILE" ] && { echo "${RED}[!] No valid target.${NC}"; sleep 2; return; }
 
-    local TOTAL_HOSTS
-    TOTAL_HOSTS=$(sort -u "$TARGET_FILE" | grep -c .)
-    echo "$GREEN [+] File loaded - $TOTAL_HOSTS lines | $TOTAL_HOSTS unique hosts ready$NC"
+    echo "${AQUA}[*] Loading host file...${NC}"
+    local TOTAL_HOSTS=$(sort -u "$TARGET_FILE" | grep -c .)
+    echo "${GREEN}[+] File loaded - $TOTAL_HOSTS lines | $TOTAL_HOSTS unique hosts ready.${NC}"
     sleep 0.5
-    echo ""
 
-    echo "$CYAN ╔═•SCAN MODE•═════════════════════════════════════════════════════════════════════$NC"
-    echo "${MAGENTA}│1 Strict 0-balance (full scan - highly Accurate)${NC}"
-    echo "${MAGENTA}│2 Strict 0-balance Anti-FUP Mode (fast scan - saves data) [default]${NC}"
-    echo "${MAGENTA}│3 Bypass & scan with active data (full scan - standard pro)${NC}"
-    echo "${MAGENTA}│4 Bypass & scan with active data Anti-FUP mode (fast scan - low bandwidth)${NC}"
-    echo "$CYAN ╚═════════════════════════════════════════════════════════════════════════════════$NC"
+    # SCAN MODE
     echo ""
-    while true; do
-        printf "~OPTION: "
-        read scan_mode
-        [ -z "$scan_mode" ] && scan_mode="2"
-        local MODE_DESC=""
-        case "$scan_mode" in
-            1) MODE_DESC="Strict 0-balance (full scan - highly Accurate)" ;;
-            2) MODE_DESC="Strict 0-balance Anti-FUP Mode" ;;
-            3) MODE_DESC="Bypass & scan with active data" ;;
-            4) MODE_DESC="Bypass & scan with active data Anti-FUP" ;;
-            *) echo "$RED Invalid option$NC"; continue ;;
-        esac
-        echo "$GREEN [+] Selected: $MODE_DESC$NC"
-        if verify_scan_mode "$scan_mode"; then
-            echo "$GREEN [+] SCAN MODE VERIFIED & CONFIRMED!!$NC"
-            break
-        else
-            echo "$YELLOW [!] Failed. Choose again.$NC"
-            echo "$CYAN ╔═•SCAN MODE•══════════════════════════════════════════════════════════════════════$NC"
-            echo "${MAGENTA}│1 Strict 0-balance${NC}"
-            echo "${MAGENTA}│2 Strict 0-balance Anti-FUP [default]${NC}"
-            echo "${MAGENTA}│3 Bypass & active data${NC}"
-            echo "${MAGENTA}│4 Bypass & active Anti-FUP${NC}"
-            echo "$CYAN ╚════════════════════════════════════════════════════════════════════════════════════$NC"
-        fi
-    done
+    echo "${MAGENTA}╔═•SCAN MODE•════════════════════════════════════════════════════${NC}"
+    echo "${AQUA}║ [1]Strict 0-balance(full scan-highly Accurate)${NC}"
+    echo "${AQUA}║ [2]Strict 0-balance Anti-FUP Mode(fast scan-saves data highly accurate)[default]${NC}"
+    echo "${AQUA}║ [3]Bypass & scan with active data(full scan-standard pro)${NC}"
+    echo "${AQUA}║ [4]Bypass & scan with active data Anti-FUP mode(fast scan-low bandwidth)${NC}"
+    echo "${MAGENTA}╚═══════════════════════════════════════════════════════════════${NC}"
+    printf "${YELLOW}~R@enter: ${NC}"; read scan_mode
+    [ -z "$scan_mode" ] && scan_mode="2"
 
+    # DNS
     echo ""
-    echo "$CYAN ╔═•DNS RESOLVER CASCADE•═══════════════════════════════$NC"
-    echo "${MAGENTA}│1 No DNS (default OS Resolver)${NC}"
-    echo "${MAGENTA}│2 Network DNS${NC}"
-    echo "${MAGENTA}│3 Cloud (1.1.1.1)${NC}"
-    echo "${MAGENTA}│4 Google (8.8.8.8)${NC}"
-    echo "$YELLOW │!] Combine e.g. 134 or 34$NC"
-    echo "$CYAN ╚═════════════════════════════════════════════════════$NC"
-    printf "~OPTION: "
-    read dns_choice
+    echo "${MAGENTA}╔═•DNS RESOLVER CASCADE•═════════════════════════════════════════${NC}"
+    echo "${AQUA}║ [1]No DNS(default OS Resolver-skip custom)${NC}"
+    echo "${AQUA}║ [2]Network DNS(Extract from the carrier/router)${NC}"
+    echo "${AQUA}║ [3]Cloud (1.1.1.1)${NC}"
+    echo "${AQUA}║ [4]Google (8.8.8.8)${NC}"
+    echo "${YELLOW}║ [!]You can combine them! e.g type 134 or 34 or 1${NC}"
+    echo "${MAGENTA}╚════════════════════════════════════════════════════════════════${NC}"
+    printf "${YELLOW}~R@enter: ${NC}"; read dns_choice
     [ -z "$dns_choice" ] && dns_choice="1"
 
-    echo ""
-    printf "Enter timeout in seconds (default 10): "
-    read timeout
-    [ -z "$timeout" ] && timeout=10
-    printf "Enter max Retries (default 0): "
-    read retries
-    [ -z "$retries" ] && retries=0
-    printf "Enter concurrency/Threads (default 100, max 200): "
-    read threads
-    [ -z "$threads" ] && threads=100
-    [ "$threads" -gt 200 ] && threads=200
+    printf "${AQUA}Enter timeout in seconds(default 10): ${NC}"; read timeout; [ -z "$timeout" ] && timeout=10
+    printf "${AQUA}Enter max Retries(default 0): ${NC}"; read retries; [ -z "$retries" ] && retries=0
+    printf "${AQUA}Enter concurrency/Threads(default 100): ${NC}"; read threads; [ -z "$threads" ] && threads=100
+    printf "${AQUA}Enter batch size(default 100): ${NC}"; read batch_size; [ -z "$batch_size" ] && batch_size=100
+    printf "${AQUA}Mark your saved files as? or press enter to skip: ${NC}"; read file_tag
 
+    # DEADLOCK
     echo ""
-    echo "$CYAN Enable batching? (y/n)$NC"
-    printf "~OPTION: "
-    read batch_enabled
-    [ -z "$batch_enabled" ] && batch_enabled="y"
-    local batch_size=100
-    if [ "$batch_enabled" = "y" ] || [ "$batch_enabled" = "Y" ]; then
-        printf "Enter batch size (default 100): "
-        read batch_size
-        [ -z "$batch_size" ] && batch_size=100
-    else
-        batch_size=0
-    fi
-
-    printf "Mark saved files as? (Enter to skip): "
-    read file_tag
-
-    echo ""
-    echo "$CYAN ╔═•DEADLOCK RECOVERY MODE•═══════════════════════════════$NC"
-    echo "${MAGENTA}│1 Manual Pause (no auto wait) [default]${NC}"
-    echo "${MAGENTA}│2 Auto-standby (wait for WiFi/Data to heal)${NC}"
-    echo "${MAGENTA}│3 Auto wait (10s)${NC}"
-    echo "${MAGENTA}│4 Auto wait (4s)${NC}"
-    echo "$CYAN ╚═══════════════════════════════════════════════════════$NC"
-    printf "~OPTION: "
-    read deadlock_choice
+    echo "${MAGENTA}╔═•DEADLOCK RECOVERY MODE•═══════════════════════════════════════${NC}"
+    echo "${AQUA}║ [1] Manual Pause (wait for user) [default]${NC}"
+    echo "${AQUA}║ [2]Auto-standby(wait for WiFi/Data to auto heal${NC}"
+    echo "${AQUA}║ [3]Shizuku Auto-Airplane Mode (Requires Shizuku)${NC}"
+    echo "${MAGENTA}╚════════════════════════════════════════════════════════════════${NC}"
+    printf "${YELLOW}~R@enter: ${NC}"; read deadlock_choice
     [ -z "$deadlock_choice" ] && deadlock_choice="1"
 
     echo ""
-    echo "$GREEN [+] Standard logging enabled.$NC"
+    echo "${MAGENTA}╔═•LOGGING CONFIGURATION•════════════════════════════════════════${NC}"
+    printf "${AQUA}║ Enter full log mode (press enter to skip)${NC}\n"
+    echo "${MAGENTA}╚════════════════════════════════════════════════════════════════${NC}"
+    printf "${YELLOW}~R@enter: ${NC}"; read log_mode
+    echo "${AQUA}[+]Standard logging enabled.${NC}"
 
+    # ENGINE CONFIG
     echo ""
-    echo "$CYAN ╔═•ENGINE CONFIGURATION•═════════════════════════════════$NC"
-    echo "  🎯 TARGET...      : $WORK_DIR/$(basename "$TARGET_FILE")"
-    echo "  📊 TOTAL HOSTS.   : $TOTAL_HOSTS"
-    echo "  🚀 THREADS.       : $threads"
-    echo "  📦 BATCH SIZE.    : $([ "$batch_enabled" = "y" ] && echo "$batch_size" || echo "N/A")"
-    echo "  ⏳ TIMEOUT..      : $timeout""s"
-    echo "  🦯 DNS CHAIN      : $dns_choice"
-    echo "$CYAN ╚═════════════════════════════════════════════════════════$NC"
-    echo ""
-    printf "Press ENTER to start scan..."
-    read confirm
+    local dns_display="$dns_choice"; [ "$dns_choice" = "1" ] && dns_display="Default"
+    echo "${MAGENTA}╔═•ENGINE CONFIGURATION•═════════════════════════════════════════${NC}"
+    echo "${AQUA}║ 🎯 TARGET        : $WORK_DIR/$(basename "$TARGET_FILE")${NC}"
+    echo "${AQUA}║ 📊 TOTAL HOSTS   : $TOTAL_HOSTS${NC}"
+    echo "${YELLOW}║ 🚀 THREADS.      : $threads${NC}"
+    echo "${YELLOW}║ 📦 BATCH SIZE    : $batch_size${NC}"
+    echo "${AQUA}║ ⏳ TIMEOUT       : ${timeout}s${NC}"
+    echo "${YELLOW}║ 🦯 DNS CHAIN     : $dns_display${NC}"
+    echo "${MAGENTA}╚════════════════════════════════════════════════════════════════${NC}"
 
+    # CUSTOM NETWORK SETUP
     echo ""
-    echo -n "$CYAN[+] Analysing network...$NC"
-    local CARRIER
-    CARRIER=$(detect_carrier)
-    echo " $GREEN$CARRIER$NC"
-    sleep 0.3
+    echo "${MAGENTA}╔═•CUSTOM NETWORK SETUP•════════════════════════════════════════${NC}"
+    echo "${AQUA}║ [1] Skip (Auto-Detect Network / Default Wi-Fi) [Default]${NC}"
+    echo "${AQUA}║ [2] Proceed Custom Setup Network${NC}"
+    echo "${MAGENTA}╚════════════════════════════════════════════════════════════════${NC}"
+    printf "${YELLOW}~R@enter: ${NC}"; read net_choice
+    [ -z "$net_choice" ] && net_choice="1"
 
-    local display_mode=1
-    local final_batch_size=$batch_size
-    [ "$batch_enabled" != "y" ] && [ "$batch_enabled" != "Y" ] && final_batch_size=$TOTAL_HOSTS
+    local CARRIER=""
+    if [ "$net_choice" = "2" ]; then
+        echo "${AQUA}[:°] ANALYZING NETWORK...${NC} [ - R@ - - ]"
+        sleep 1
+        CARRIER=$(detect_carrier)
+        # 0-balance verification
+        local test=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "https://www.google.com/generate_204" 2>/dev/null)
+        if [ "$scan_mode" = "1" ] || [ "$scan_mode" = "2" ]; then
+            if [ "$test" != "000" ] && [ "$test" != "204" ] || [ "$test" = "204" ]; then
+                echo "${RED}[!] Active data detected. Zero balance expected.${NC}"
+            else
+                echo "${GREEN}[+] Zero balance confirmed. Safe to proceed.${NC}"
+            fi
+        fi
+        echo "${GREEN}[+] Network Carrier: $CARRIER${NC}"
+    else
+        CARRIER=$(detect_carrier)
+        echo "${AQUA}[:°] ANALYZING NETWORK...${NC} [ - R@ - - ]"
+        sleep 1
+        echo "${GREEN}[+] Network Carrier: $CARRIER${NC}"
+    fi
+
+    sleep 1
+
+    local final_batch=$batch_size
+    [ "$scan_mode" = "1" ] || [ "$scan_mode" = "2" ] && final_batch=$batch_size
 
     if [ "$scan_mode" = "1" ] || [ "$scan_mode" = "2" ]; then
-        run_scan_zero "$TARGET_FILE" "$TOTAL_HOSTS" "$timeout" "$final_batch_size" "$CARRIER" "$WORK_DIR" "$file_tag" "$threads" "$deadlock_choice" "0" "0" "0" "0" "$dns_choice" "$batch_enabled" "$scan_mode"
+        run_scan_zero "$TARGET_FILE" "$TOTAL_HOSTS" "$timeout" "$final_batch" "$CARRIER" "$WORK_DIR" "$file_tag" "$threads" "$deadlock_choice" "0" "0" "0" "0" "$dns_choice" "y" "$scan_mode"
     else
-        run_scan_active "$TARGET_FILE" "$TOTAL_HOSTS" "$timeout" "$final_batch_size" "$CARRIER" "$WORK_DIR" "$file_tag" "$threads" "$deadlock_choice" "$dns_choice" "$batch_enabled" "$scan_mode"
+        run_scan_active "$TARGET_FILE" "$TOTAL_HOSTS" "$timeout" "$final_batch" "$CARRIER" "$WORK_DIR" "$file_tag" "$threads" "$deadlock_choice" "$dns_choice" "y" "$scan_mode"
     fi
 }
