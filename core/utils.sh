@@ -54,9 +54,12 @@ install_rat() {
     echo "${GREEN}[+] It appears this action is already set now tool will proceed in 2s...${NC}"
     sleep 2
     echo ""
-    echo -n "${YELLOW}[🔒] Enter The tool PIN to proceed: ${NC}"
-    read pin
-    [ "$pin" != "$SCANNER_PIN" ] && { echo "${RED}[!] INCORRECT PIN, CORRECT PIN IS REQUIRED RE ENTER THE CORRECT PIN NOW${NC}"; sleep 3; return; }
+    while true; do
+        echo -n "${YELLOW}[🔒] Enter The tool PIN to proceed: ${NC}"
+        read pin
+        [ "$pin" = "$SCANNER_PIN" ] && break
+        echo "${RED}[!] INCORRECT PIN, CORRECT PIN IS REQUIRED RE ENTER THE CORRECT PIN NOW${NC}"
+    done
     echo ""
     echo "${AQUA}[*] Setting up the tool (This may take 1 - 2 minutes)...${NC}"
     pkg update -y >/dev/null 2>&1
@@ -92,7 +95,8 @@ install_rat() {
     echo "${YELLOW}     R@tscan${NC}"
     echo "${YELLOW}     RSTzscan${NC}"
     echo ""
-    read -p "${YELLOW}~R@enter: ${NC}" cmd
+    echo -n "${YELLOW}~R@enter: ${NC}"
+    read cmd
     case "$cmd" in
         R@t|R@tscan|RSTzscan|RSTscan|R@scan) exec bash "$RAT_DIR/rat.sh" --run ;;
         *) echo "${YELLOW}[*] Run any of the commands to start the tool.${NC}" ;;
@@ -152,7 +156,29 @@ normalize_carrier() {
     esac
 }
 
+# ─── Simple animated analyzing spinner (used for skip mode) ─
+animate_analyzing() {
+    local total_secs="$1"
+    local frames=("R@ - - - -" "- R@ - - -" "- - R@ - -" "- - - R@ -" "- - - - R@")
+    local colours=("$YELLOW" "$CYAN" "$CYAN" "$CYAN" "$YELLOW")
+    local flen=${#frames[@]}
+    local i=0
+    local elapsed=0
+    local steps=$(( total_secs * 10 ))
+    tput civis 2>/dev/null
+    while [ $elapsed -lt $steps ]; do
+        local idx=$(( i % flen ))
+        printf "\r\033[K${AQUA}[:°] ANALYZING NETWORK...${NC} [ ${colours[$idx]}${frames[$idx]}${NC} ] "
+        i=$((i+1))
+        elapsed=$((elapsed+1))
+        sleep 0.1
+    done
+    printf "\r\033[K${AQUA}[:°] ANALYZING NETWORK... [ DONE ]${NC}\n"
+    tput cnorm 2>/dev/null
+}
+
 # ─── Custom Network Setup with real probing ──────────────
+# Sets global _RST_CARRIER, does NOT emit it via stdout
 custom_network_setup() {
     local scan_mode="$1"
     local TMP=$(mktemp -d)
@@ -164,29 +190,39 @@ custom_network_setup() {
         "TELKOM|www.telkom.co.za"
     )
     local NEUTRAL=("www.google.com/generate_204" "www.cloudflare.com")
-    local CARRIER=""
 
-    local frames=("R@ - - -" "- R@ - -" "- - R@ -" "- - - R@")
-    local fi=0
-    printf "${AQUA}[:°] ANALYZING NETWORK...${NC} [ ${frames[0]} ] "
+    _RST_CARRIER=""
+
+    local frames=("R@ - - - -" "- R@ - - -" "- - R@ - -" "- - - R@ -" "- - - - R@")
+    local colours=("$YELLOW" "$CYAN" "$CYAN" "$CYAN" "$YELLOW")
+    local flen=${#frames[@]}
+    local i=0
+
+    tput civis 2>/dev/null
+
+    local s
     for s in "${SITES[@]}"; do
         ( code=$(curl -s -o /dev/null -m 6 -w "%{http_code}" "https://${s#*|}" 2>/dev/null); echo "${code:-000}" > "$TMP/site_${s%%|*}.done" ) &
     done
-    local i=0
+    local n_idx=0
     for n in "${NEUTRAL[@]}"; do
-        ( code=$(curl -s -o /dev/null -m 6 -w "%{http_code}" "https://$n" 2>/dev/null); echo "${code:-000}" > "$TMP/net_$i.done" ) &
-        i=$((i+1))
+        ( code=$(curl -s -o /dev/null -m 6 -w "%{http_code}" "https://$n" 2>/dev/null); echo "${code:-000}" > "$TMP/net_$n_idx.done" ) &
+        n_idx=$((n_idx+1))
     done
+
+    # Animate while probes are running
     while [ "$(ls "$TMP"/*.done 2>/dev/null | wc -l)" -lt 7 ]; do
-        fi=$(( (fi+1) % 4 ))
-        printf "\r${AQUA}[:°] ANALYZING NETWORK...${NC} [ ${frames[$fi]} ] "
+        local idx=$(( i % flen ))
+        printf "\r\033[K${AQUA}[:°] ANALYZING NETWORK...${NC} [ ${colours[$idx]}${frames[$idx]}${NC} ] "
+        i=$((i+1))
         sleep 0.15
     done
     printf "\r\033[K${AQUA}[:°] ANALYZING NETWORK... [ DONE ]${NC}\n"
+    tput cnorm 2>/dev/null
     wait 2>/dev/null
 
-    # Check if any neutral site responded
     local net_works=0
+    local f
     for f in "$TMP"/net_*.done; do
         [ -f "$f" ] && [ "$(cat "$f")" != "000" ] && net_works=1
     done
@@ -194,35 +230,32 @@ custom_network_setup() {
     if [ "$scan_mode" = "1" ] || [ "$scan_mode" = "2" ]; then
         if [ $net_works -eq 1 ]; then
             echo "${YELLOW}[!] WARNING INTERNET DETECTED MANUALLY ENTER CARRIER NETWORK${NC}"
-            CARRIER=$(ask_manual_carrier)
+            ask_manual_carrier
         else
             echo "${GREEN}[+] Zero balance confirmed. Safe to proceed.${NC}"
-            # Find which carrier site responded
             local hits=()
             for s in "${SITES[@]}"; do
                 [ -f "$TMP/site_${s%%|*}.done" ] && [ "$(cat "$TMP/site_${s%%|*}.done")" != "000" ] && hits+=("${s%%|*}")
             done
             case ${#hits[@]} in
-                1) CARRIER="${hits[0]}" ;;
-                0) echo "${YELLOW}[!] NO CARRIER SITE RESPONDED. MANUALLY ENTER CARRIER NETWORK${NC}"; CARRIER=$(ask_manual_carrier) ;;
-                *) echo "${YELLOW}[!] MULTIPLE RESPONDED (${hits[*]}). MANUALLY ENTER CARRIER NETWORK${NC}"; CARRIER=$(ask_manual_carrier) ;;
+                1) _RST_CARRIER="${hits[0]}" ;;
+                0) echo "${YELLOW}[!] NO CARRIER SITE RESPONDED. MANUALLY ENTER CARRIER NETWORK${NC}"; ask_manual_carrier ;;
+                *) echo "${YELLOW}[!] MULTIPLE RESPONDED (${hits[*]}). MANUALLY ENTER CARRIER NETWORK${NC}"; ask_manual_carrier ;;
             esac
         fi
     else
-        # Active data expected
         if [ $net_works -eq 0 ]; then
             echo "${YELLOW}[!] WARNING NO ACTIVE DATA DETECTED. MANUALLY ENTER CARRIER NETWORK${NC}"
-            CARRIER=$(ask_manual_carrier)
+            ask_manual_carrier
         else
             echo "${GREEN}[+] Active data confirmed. Safe to proceed.${NC}"
-            CARRIER=$(detect_carrier)
-            [ "$CARRIER" = "Unknown" ] && CARRIER=$(ask_manual_carrier)
+            _RST_CARRIER=$(detect_carrier)
+            [ "$_RST_CARRIER" = "Unknown" ] && ask_manual_carrier
         fi
     fi
 
     rm -rf "$TMP"
-    echo "${GREEN}[+] Network Carrier: $CARRIER${NC}"
-    echo "$CARRIER"
+    echo "${GREEN}[+] Network Carrier: $_RST_CARRIER${NC}"
 }
 
 ask_manual_carrier() {
@@ -233,7 +266,7 @@ ask_manual_carrier() {
         name=$(normalize_carrier "$input")
         [ -z "$name" ] && echo "${RED}[!] Unknown network. Use: MTN, VODACOM, CELLC, TELKOM or RAIN${NC}"
     done
-    echo "$name"
+    _RST_CARRIER="$name"
 }
 
 resolve_host() {
@@ -261,8 +294,6 @@ resolve_host() {
 
 save_scan_state() {
     local rnd=$(printf "%04d" $((RANDOM % 10000)))
-    local tag_part="nn"
-    [ -n "$TAG" ] && tag_part="$TAG"
     local sc=$(echo "$CARRIER" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
     local state_file="$WORK_DIR/PAUSED_${sc}_$(date +%d_%Y%m%d_%H%M)_${rnd}.txt"
     local elapsed_sec=0
