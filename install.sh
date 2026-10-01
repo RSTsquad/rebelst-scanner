@@ -5,6 +5,9 @@
 
 REPO="https://raw.githubusercontent.com/RSTsquad/rebelst-scanner/main"
 
+# CRITICAL: read from terminal even when piped via curl | bash
+exec < /dev/tty
+
 clear
 echo -e "\033[0;34m══════════════════════════════════════════════════════════════════════════════════════\033[0m"
 echo -e "\033[0;34m   [R•S•T]🇦🇶 🩵INSTALLATION HUB| THANKS😇 FOR INSTALLING ME R@t 0-SCANNER 💙\033[0m"
@@ -23,12 +26,17 @@ sleep 2
 echo -e "\033[1;32m[+] It appears this action is already set now tool will proceed in 2s...\033[0m"
 sleep 2
 echo ""
-echo -n -e "\033[1;33m[🔒] Enter The tool PIN to proceed: \033[0m"
-read pin
-if [ "$pin" != "083312" ]; then
+
+# PIN loop with retry
+while true; do
+    echo -n -e "\033[1;33m[🔒] Enter The tool PIN to proceed: \033[0m"
+    read -r pin
+    if [ "$pin" = "083312" ]; then
+        break
+    fi
     echo -e "\033[0;31m[!] INCORRECT PIN, CORRECT PIN IS REQUIRED RE ENTER THE CORRECT PIN NOW\033[0m"
-    exit 1
-fi
+done
+
 echo ""
 echo -e "\033[1;36m[*] Setting up the tool (This may take 1 - 2 minutes)...\033[0m"
 pkg update -y >/dev/null 2>&1
@@ -65,7 +73,8 @@ echo -e "\033[1;33m     R@t\033[0m"
 echo -e "\033[1;33m     R@tscan\033[0m"
 echo -e "\033[1;33m     RSTzscan\033[0m"
 echo ""
-read -p "$(echo -e '\033[1;33m~R@enter: \033[0m')" cmd
+echo -n -e "\033[1;33m~R@enter: \033[0m"
+read -r cmd
 case "$cmd" in
     R@t|R@tscan|RSTzscan|RSTscan|R@scan) exec bash ~/R@t/rat.sh --run ;;
     *) echo -e "\033[1;33m[*] Run any of the commands to start the tool.\033[0m" ;;
