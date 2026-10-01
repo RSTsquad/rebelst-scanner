@@ -33,40 +33,30 @@ scanner_login() {
     echo "YOU'LL BE GIVEN YOUR PM-KEY/V-KEY AND COMEBACK AND PASTE IT HERE${NC}"
     echo ""
 
-    # Username max 10 chars
     local USERNAME=""
     while true; do
         printf "${YELLOW}ENTER USERNAME: ${NC}"
         read USERNAME
         if [ -z "$USERNAME" ]; then
-            echo "${RED}[!] Username required${NC}"
-            continue
+            echo "${RED}[!] Username required${NC}"; continue
         fi
         if [ ${#USERNAME} -gt 10 ]; then
-            echo "${RED}[!] Username must not exceed 10 characters (incl. spaces). You entered ${#USERNAME}.${NC}"
-            continue
+            echo "${RED}[!] Username must not exceed 10 characters (incl. spaces). You entered ${#USERNAME}.${NC}"; continue
         fi
         break
     done
 
-    # V-KEY with retry loop
     while true; do
         printf "${YELLOW}ENTER PM/V-KEY: ${NC}"
         read vkey
         local RESULT=$(verify_vkey "$vkey")
         case "$RESULT" in
             "INVALID")
-                echo "${RED}[!] INCORRECT V-KEY! Please try again.${NC}"
-                continue
-                ;;
+                echo "${RED}[!] INCORRECT V-KEY! Please try again.${NC}"; continue ;;
             "WRONG_DEVICE")
-                echo "${RED}[!] INVALID: This key was generated for a different device! Please try again.${NC}"
-                continue
-                ;;
+                echo "${RED}[!] INVALID: This key was generated for a different device! Please try again.${NC}"; continue ;;
             "EXPIRED")
-                echo "${RED}[!] INVALID: Your V-Key has expired! Generate a new one.${NC}"
-                continue
-                ;;
+                echo "${RED}[!] INVALID: Your V-Key has expired! Generate a new one.${NC}"; continue ;;
             *)
                 echo "$vkey" > "$RAT_KEY_FILE"
                 echo "$USERNAME" > "$RAT_USER_FILE"
@@ -75,8 +65,7 @@ scanner_login() {
                 echo "${GREEN}[+] [+]ACCESS GRANTED. KEY SAVED FOR AUTO-LOGIN! WELCOME TO PM USER${NC}"
                 sleep 2
                 command_hub "$USERNAME"
-                return
-                ;;
+                return ;;
         esac
     done
 }
@@ -117,7 +106,6 @@ main_menu() {
     scanner_login
 }
 
-# ─── Execution flow (replaces whole screen) ──────────────
 start_execution() {
     local USERNAME="$1" DEVICE_ID="$2" EXPIRY_FMT="$3"
     show_header_with_user "$USERNAME" "$DEVICE_ID" "$EXPIRY_FMT"
@@ -142,7 +130,6 @@ start_execution() {
     mkdir -p "$WORK_DIR"
     echo "${GREEN}[+] Working directory set to:$WORK_DIR${NC}"
 
-    # Paused scans
     local RESUME_FILE=""
     local resume_out=$(list_paused_scans "$WORK_DIR")
     if [ -n "$resume_out" ]; then
@@ -309,11 +296,12 @@ start_execution() {
 
     local CARRIER=""
     if [ "$net_choice" = "2" ]; then
-        CARRIER=$(custom_network_setup "$scan_mode")
+        custom_network_setup "$scan_mode"
+        CARRIER="$_RST_CARRIER"
     else
+        # Skip mode: show real animation for 2s, then detect carrier
+        animate_analyzing 2
         CARRIER=$(detect_carrier)
-        echo "${AQUA}[:°] ANALYZING NETWORK...${NC} [ - R@ - - ]"
-        sleep 1
         echo "${GREEN}[+] Network Carrier: $CARRIER${NC}"
     fi
     sleep 1
