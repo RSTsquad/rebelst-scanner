@@ -10,15 +10,15 @@ move_up() { printf "\033[%dA" "$1"; }
 show_banner() {
     clear
     echo "${PURPLE}=====================================================================${NC}"
-    echo "${AQUA}╔═══════════════════════════════════════════════════════════════════╗${NC}"
-    echo "${AQUA}║        ██████╗ ███████╗██████╗ ███████╗██╗     ███████╗████████╗  ║${NC}"
-    echo "${AQUA}║        ██╔══██╗██╔════╝██╔══██╗██╔════╝██║     ██╔════╝╚══██╔══╝  ║${NC}"
-    echo "${AQUA}║        ██████╔╝█████╗  ██████╔╝█████╗  ██║     ███████╗   ██║     ║${NC}"
-    echo "${AQUA}║        ██╔══██╗██╔══╝  ██╔══██╗██╔══╝  ██║     ╚════██║   ██║     ║${NC}"
-    echo "${AQUA}║        ██║  ██║███████╗██████╔╝███████╗███████╗███████║   ██║     ║${NC}"
-    echo "${AQUA}║        ╚═╝  ╚═╝╚══════╝╚═════╝ ╚══════╝╚══════╝╚══════╝   ╚═╝     ║${NC}"
-    echo "${AQUA}║                          ${AQUA}Tech${BLUE}sys${AQUA}tem: ${BLUE}R@${AQUA}t${PURPLE}|${GOLD}V3.0${NC}                     ║${NC}"
-    echo "${AQUA}║      ${YELLOW}•${AQUA}REBEL SQUAD TERRORIST ${YELLOW}R@${RED} - ZERO-RATED SCANNER TOOL${AQUA}${YELLOW}•${NC}         ║${NC}"
+    echo "${PURPLE}╔═══════════════════════════════════════════════════════════════════╗${NC}"
+    echo "${PURPLE}║${AQUA}        ██████╗ ███████╗██████╗ ███████╗██╗     ███████╗████████╗  ${PURPLE}║${NC}"
+    echo "${PURPLE}║${AQUA}        ██╔══██╗██╔════╝██╔══██╗██╔════╝██║     ██╔════╝╚══██╔══╝  ${PURPLE}║${NC}"
+    echo "${PURPLE}║${AQUA}        ██████╔╝█████╗  ██████╔╝█████╗  ██║     ███████╗   ██║     ${PURPLE}║${NC}"
+    echo "${PURPLE}║${AQUA}        ██╔══██╗██╔══╝  ██╔══██╗██╔══╝  ██║     ╚════██║   ██║     ${PURPLE}║${NC}"
+    echo "${PURPLE}║${AQUA}        ██║  ██║███████╗██████╔╝███████╗███████╗███████║   ██║     ${PURPLE}║${NC}"
+    echo "${PURPLE}║${AQUA}        ╚═╝  ╚═╝╚══════╝╚═════╝ ╚══════╝╚══════╝╚══════╝   ╚═╝     ${PURPLE}║${NC}"
+    echo "${PURPLE}║${AQUA}                          Tech${BLUE}sys${AQUA}tem: ${BLUE}R@${AQUA}t${PURPLE}|${GOLD}V3.1${NC}                     ${PURPLE}║${NC}"
+    echo "${PURPLE}║${AQUA}      ${YELLOW}•${AQUA}REBEL SQUAD TERRORIST ${YELLOW}R@${RED}- ZERO-RATED SCANNER TOOL${AQUA}${YELLOW}•${NC}         ${PURPLE}║${NC}"
     echo "${PURPLE}╠═══════════════════════════════════════════════════════════════════╣${NC}"
 }
 
@@ -33,7 +33,7 @@ show_header_with_user() {
     echo "${PURPLE}║${NC} ${WHITE}[WEB]      :${NC} ${BLUE}$RAT_WEB${NC}"
     echo "${PURPLE}║${NC}                                                                   ${NC}"
     echo "${PURPLE}║${NC}       ${YELLOW}•RST:REBELSQUADTERRORISTtechsystem•  •ROLEMODEL:TK.M@☆${NC}"
-    echo "${AQUA}╚═══════════════════════════════════════════════════════════════════╝${NC}"
+    echo "${PURPLE}╚═══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
 
