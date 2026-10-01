@@ -9,9 +9,7 @@ get_device_id() {
     if [ -z "$DEV_ID" ] || [ "$DEV_ID" = "unknown" ]; then
         DEV_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '-' | head -c 16)
     fi
-    if [ -z "$DEV_ID" ]; then
-        DEV_ID=$(echo "$RAT_DIR$(date +%s)" | sha256sum | cut -c1-16)
-    fi
+    [ -z "$DEV_ID" ] && DEV_ID=$(echo "$RAT_DIR$(date +%s)" | sha256sum | cut -c1-16)
     mkdir -p "$(dirname "$RAT_DEV_FILE")"
     echo "$DEV_ID" > "$RAT_DEV_FILE"
     chmod 600 "$RAT_DEV_FILE"
@@ -74,7 +72,7 @@ install_rat() {
     echo "${GREEN}[+] coreutils installed✓${NC}"
     echo "${GREEN}[+] dig installed✓${NC}"
     echo "${GREEN}[+] termux-api installed✓${NC}"
-    if [ ! -f "$RAT_DEV_FILE" ]; then get_device_id >/dev/null; fi
+    [ ! -f "$RAT_DEV_FILE" ] && get_device_id >/dev/null
     cp "$0" "$RAT_DIR/rat.sh" 2>/dev/null
     chmod +x "$RAT_DIR/rat.sh" 2>/dev/null
     ln -sf "$RAT_DIR/rat.sh" "$PREFIX/bin/R@t" 2>/dev/null
@@ -96,8 +94,7 @@ install_rat() {
     echo ""
     read -p "${YELLOW}~R@enter: ${NC}" cmd
     case "$cmd" in
-        R@t|R@tscan|RSTzscan|RSTscan|R@scan)
-            exec bash "$RAT_DIR/rat.sh" --run ;;
+        R@t|R@tscan|RSTzscan|RSTscan|R@scan) exec bash "$RAT_DIR/rat.sh" --run ;;
         *) echo "${YELLOW}[*] Run any of the commands to start the tool.${NC}" ;;
     esac
 }
@@ -106,9 +103,7 @@ update_tool() {
     echo "${AQUA}[+] Checking for updates...${NC}"
     local REMOTE_VERSION
     REMOTE_VERSION=$(curl -s --max-time 10 "$GITHUB_RAW/core/config.sh" | grep -m1 'RAT_VERSION="' | cut -d'"' -f2)
-    if [ -z "$REMOTE_VERSION" ]; then
-        echo "${RED}[!] Could not fetch remote version.${NC}"; sleep 2; return
-    fi
+    if [ -z "$REMOTE_VERSION" ]; then echo "${RED}[!] Could not fetch remote version.${NC}"; sleep 2; return; fi
     if [ "$REMOTE_VERSION" = "$RAT_VERSION" ]; then
         echo "${GREEN}[+] You have the latest version ($RAT_VERSION).${NC}"; sleep 2; return
     fi
@@ -125,9 +120,8 @@ update_tool() {
 }
 
 detect_carrier() {
-    local active_sim=$(getprop persist.radio.data_sim 2>/dev/null)
-    local carrier="Unknown"
     local val=$(getprop gsm.sim.operator.alpha 2>/dev/null | head -c 30)
+    local carrier="Unknown"
     case $(echo "$val" | tr '[:upper:]' '[:lower:]') in
         *vodacom*|*voda*) carrier="VODACOM" ;;
         *mtn*) carrier="MTN" ;;
@@ -148,6 +142,100 @@ detect_carrier() {
     echo "$carrier"
 }
 
+normalize_carrier() {
+    case "$(echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' ')" in
+        *cell*) echo "CELLC" ;;
+        *mtn*) echo "MTN" ;;
+        *voda*) echo "VODACOM" ;;
+        *telkom*|*8ta*) echo "TELKOM" ;;
+        *rain*) echo "RAIN" ;;
+    esac
+}
+
+# ─── Custom Network Setup with real probing ──────────────
+custom_network_setup() {
+    local scan_mode="$1"
+    local TMP=$(mktemp -d)
+    local SITES=(
+        "CELLC|nofunds.cellc.mobi"
+        "MTN|nofunds.mtn.co.za"
+        "VODACOM|connectu.vodacom.co.za"
+        "RAIN|www.rain.co.za"
+        "TELKOM|www.telkom.co.za"
+    )
+    local NEUTRAL=("www.google.com/generate_204" "www.cloudflare.com")
+    local CARRIER=""
+
+    local frames=("R@ - - -" "- R@ - -" "- - R@ -" "- - - R@")
+    local fi=0
+    printf "${AQUA}[:°] ANALYZING NETWORK...${NC} [ ${frames[0]} ] "
+    for s in "${SITES[@]}"; do
+        ( code=$(curl -s -o /dev/null -m 6 -w "%{http_code}" "https://${s#*|}" 2>/dev/null); echo "${code:-000}" > "$TMP/site_${s%%|*}.done" ) &
+    done
+    local i=0
+    for n in "${NEUTRAL[@]}"; do
+        ( code=$(curl -s -o /dev/null -m 6 -w "%{http_code}" "https://$n" 2>/dev/null); echo "${code:-000}" > "$TMP/net_$i.done" ) &
+        i=$((i+1))
+    done
+    while [ "$(ls "$TMP"/*.done 2>/dev/null | wc -l)" -lt 7 ]; do
+        fi=$(( (fi+1) % 4 ))
+        printf "\r${AQUA}[:°] ANALYZING NETWORK...${NC} [ ${frames[$fi]} ] "
+        sleep 0.15
+    done
+    printf "\r\033[K${AQUA}[:°] ANALYZING NETWORK... [ DONE ]${NC}\n"
+    wait 2>/dev/null
+
+    # Check if any neutral site responded
+    local net_works=0
+    for f in "$TMP"/net_*.done; do
+        [ -f "$f" ] && [ "$(cat "$f")" != "000" ] && net_works=1
+    done
+
+    if [ "$scan_mode" = "1" ] || [ "$scan_mode" = "2" ]; then
+        if [ $net_works -eq 1 ]; then
+            echo "${YELLOW}[!] WARNING INTERNET DETECTED MANUALLY ENTER CARRIER NETWORK${NC}"
+            CARRIER=$(ask_manual_carrier)
+        else
+            echo "${GREEN}[+] Zero balance confirmed. Safe to proceed.${NC}"
+            # Find which carrier site responded
+            local hits=()
+            for s in "${SITES[@]}"; do
+                [ -f "$TMP/site_${s%%|*}.done" ] && [ "$(cat "$TMP/site_${s%%|*}.done")" != "000" ] && hits+=("${s%%|*}")
+            done
+            case ${#hits[@]} in
+                1) CARRIER="${hits[0]}" ;;
+                0) echo "${YELLOW}[!] NO CARRIER SITE RESPONDED. MANUALLY ENTER CARRIER NETWORK${NC}"; CARRIER=$(ask_manual_carrier) ;;
+                *) echo "${YELLOW}[!] MULTIPLE RESPONDED (${hits[*]}). MANUALLY ENTER CARRIER NETWORK${NC}"; CARRIER=$(ask_manual_carrier) ;;
+            esac
+        fi
+    else
+        # Active data expected
+        if [ $net_works -eq 0 ]; then
+            echo "${YELLOW}[!] WARNING NO ACTIVE DATA DETECTED. MANUALLY ENTER CARRIER NETWORK${NC}"
+            CARRIER=$(ask_manual_carrier)
+        else
+            echo "${GREEN}[+] Active data confirmed. Safe to proceed.${NC}"
+            CARRIER=$(detect_carrier)
+            [ "$CARRIER" = "Unknown" ] && CARRIER=$(ask_manual_carrier)
+        fi
+    fi
+
+    rm -rf "$TMP"
+    echo "${GREEN}[+] Network Carrier: $CARRIER${NC}"
+    echo "$CARRIER"
+}
+
+ask_manual_carrier() {
+    local name="" input
+    while [ -z "$name" ]; do
+        prompt_rat
+        read -r input
+        name=$(normalize_carrier "$input")
+        [ -z "$name" ] && echo "${RED}[!] Unknown network. Use: MTN, VODACOM, CELLC, TELKOM or RAIN${NC}"
+    done
+    echo "$name"
+}
+
 resolve_host() {
     local domain="$1"
     local dns_mode="$2"
@@ -160,10 +248,7 @@ resolve_host() {
             4) resolvers+=("8.8.8.8" "8.8.4.4") ;;
         esac
     done
-    # If input is already an IP, return it
-    if [[ "$domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "$domain"; return 0
-    fi
+    if [[ "$domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "$domain"; return 0; fi
     for ns in "${resolvers[@]}"; do
         ip=$(dig +short +timeout=2 +tries=1 @"$ns" "$domain" A 2>/dev/null | head -1)
         [ -n "$ip" ] && { echo "$ip"; return 0; }
@@ -175,7 +260,11 @@ resolve_host() {
 }
 
 save_scan_state() {
-    local state_file="$RAT_CONFIG/PAUSED_${CARRIER}_$(date +%d_%Y%m%d_%H%M).txt"
+    local rnd=$(printf "%04d" $((RANDOM % 10000)))
+    local tag_part="nn"
+    [ -n "$TAG" ] && tag_part="$TAG"
+    local sc=$(echo "$CARRIER" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
+    local state_file="$WORK_DIR/PAUSED_${sc}_$(date +%d_%Y%m%d_%H%M)_${rnd}.txt"
     local elapsed_sec=0
     [ -n "$start_time" ] && [ "$start_time" -gt 0 ] 2>/dev/null && elapsed_sec=$(( $(date +%s) - start_time ))
     cat > "$state_file" << EOF
@@ -201,7 +290,6 @@ save_scan_state() {
     "batch_enabled": "$BATCH_ENABLED"
 }
 EOF
-    # Save remaining hosts to same file location as paused text
     local remaining_file="${state_file%.txt}_hosts.txt"
     tail -n +$(( ${total_scanned:-0} + 1 )) "$TARGET_FILE" > "$remaining_file" 2>/dev/null
     echo "$state_file"
@@ -212,6 +300,7 @@ list_paused_scans() {
     local count=0
     local files=()
     for f in "$dir"/PAUSED_*.txt; do
+        [[ "$f" == *_hosts.txt ]] && continue
         [ -f "$f" ] && { count=$((count+1)); files+=("$f"); }
     done
     [ $count -eq 0 ] && return 1
@@ -224,7 +313,7 @@ list_paused_scans() {
     done
     echo "${AQUA} [M] Manual : Type the name of a different paused file${NC}"
     echo "${AQUA} [Enter]     : Start a brand new file${NC}"
-    echo -n "${YELLOW}~R@enter: ${NC}"
+    prompt_rat
     read resume_choice
     echo "$resume_choice"
     return 0
