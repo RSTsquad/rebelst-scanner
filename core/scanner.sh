@@ -8,7 +8,6 @@ ANIM_LEN=${#ANIM_FRAMES[@]}
 
 clear_line() { printf "\r\033[K"; }
 
-# ─── Fmt helper: 00h:00m:00s ─────────────────────────────
 fmt_time() {
     local t=$1
     printf "%02dh:%02dm:%02ds" $((t/3600)) $(((t%3600)/60)) $((t%60))
@@ -67,14 +66,9 @@ check_host_active() {
     if [ "$code" != "000" ] && [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then echo "LIVE|$code"; else echo "DEAD"; fi
 }
 
-# ─── Shizuku Airplane-cycle with REAL deadlock test ──────
 shizuku_airplane_cycle() {
-    # Real check: is the network ACTUALLY down right now?
     local test=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "https://www.google.com/generate_204" 2>/dev/null)
-    if [ "$test" != "000" ]; then
-        # Network is alive — no deadlock, skip recovery
-        return 0
-    fi
+    [ "$test" != "000" ] && return 0
     echo "${RED}[!] DEADLOCK DETECTED. EXECUTING AUTO-RECOVERY...${NC}"
     echo "${AQUA}[:.] SHIZUKU TOGGLED NETWORK. HANDSHAKING WITH CELL TOWER...${NC}"
     cmd connectivity airplane-mode enable 2>/dev/null
@@ -82,7 +76,6 @@ shizuku_airplane_cycle() {
     cmd connectivity airplane-mode disable 2>/dev/null
     sleep 4
     echo "${AQUA}[:.] NETWORK HANDSHAKE COMPLETE. VERIFYING INTEGRITY...${NC}"
-    # Verify it's really back
     local tries=0
     while [ $tries -lt 6 ]; do
         test=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "https://www.google.com/generate_204" 2>/dev/null)
@@ -107,8 +100,7 @@ handle_interrupt() {
             local state_file=$(save_scan_state)
             echo "${GREEN}[*] Vault saved successfully: $state_file${NC}"
             show_next_prompt
-            return 1
-            ;;
+            return 1 ;;
         p|P) echo "${YELLOW}[!] Session paused. Press CTRL+C again to exit.${NC}"; sleep 3; return 0 ;;
         s|S) echo "${RED}[!] Stopping without saving.${NC}"; exit 0 ;;
         *) return 0 ;;
@@ -141,7 +133,6 @@ show_full_summary() {
     read
 }
 
-# ─── Zero-Rated Engine ───────────────────────────────────
 run_scan_zero() {
     mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
     local TARGET_FILE="$1" TOTAL="$2" TIMEOUT="$3" BATCH="$4"
@@ -230,13 +221,13 @@ run_scan_zero() {
         done < "$tmp_res"
         rm -f "$tmp_res"
 
-        # WATCHDOG
-        echo ""
+        # WATCHDOG: bar visible 1s → clear → watchdog 1s → clear → scroll
+        sleep 1
+        clear_line
         printf "${YELLOW}[..] WATCHDOG: Verifying Batch $batch_idx Integrity...${NC}"
         sleep 1
         printf "\r\033[K"
 
-        # Scroll results (arrows NOT colored)
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
             local host="${entry##*|}"
@@ -276,7 +267,6 @@ run_scan_zero() {
             elif [ "$DEADLOCK_MODE" = "3" ]; then
                 shizuku_airplane_cycle
             fi
-            # Mode 1: no wait at all
         fi
     done
 
@@ -306,7 +296,6 @@ run_scan_zero() {
     show_next_prompt
 }
 
-# ─── Active Engine ───────────────────────────────────────
 run_scan_active() {
     mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
     local TARGET_FILE="$1" TOTAL="$2" TIMEOUT="$3" BATCH="$4"
@@ -381,7 +370,8 @@ run_scan_active() {
         done < "$tmp_res"
         rm -f "$tmp_res"
 
-        echo ""
+        sleep 1
+        clear_line
         printf "${YELLOW}[..] WATCHDOG: Verifying Batch $batch_idx Integrity...${NC}"
         sleep 1
         printf "\r\033[K"
