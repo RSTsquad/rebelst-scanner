@@ -5,9 +5,6 @@
 
 REPO="https://raw.githubusercontent.com/RSTsquad/rebelst-scanner/main"
 
-# CRITICAL: read from terminal even when piped via curl | bash
-exec < /dev/tty
-
 clear
 echo -e "\033[0;34m══════════════════════════════════════════════════════════════════════════════════════\033[0m"
 echo -e "\033[0;34m   [R•S•T]🇦🇶 🩵INSTALLATION HUB| THANKS😇 FOR INSTALLING ME R@t 0-SCANNER 💙\033[0m"
@@ -27,10 +24,10 @@ echo -e "\033[1;32m[+] It appears this action is already set now tool will proce
 sleep 2
 echo ""
 
-# PIN loop with retry
+# PIN loop with retry — read from /dev/tty
 while true; do
     echo -n -e "\033[1;33m[🔒] Enter The tool PIN to proceed: \033[0m"
-    read -r pin
+    read -r pin < /dev/tty
     if [ "$pin" = "083312" ]; then
         break
     fi
@@ -39,8 +36,8 @@ done
 
 echo ""
 echo -e "\033[1;36m[*] Setting up the tool (This may take 1 - 2 minutes)...\033[0m"
-pkg update -y >/dev/null 2>&1
-pkg install -y curl jq coreutils dig termux-api >/dev/null 2>&1
+DEBIAN_FRONTEND=noninteractive pkg update -y >/dev/null 2>&1
+DEBIAN_FRONTEND=noninteractive pkg install -y curl jq coreutils dig termux-api >/dev/null 2>&1
 mkdir -p ~/R@t/core ~/R@t/saved ~/R@t/logs ~/R@t/results ~/R@t/.config
 echo -e "\033[1;32m[+] Tool framework set successfully✓\033[0m"
 echo -e "\033[1;32m[+] Member login sections for auto-login set✓\033[0m"
@@ -74,7 +71,7 @@ echo -e "\033[1;33m     R@tscan\033[0m"
 echo -e "\033[1;33m     RSTzscan\033[0m"
 echo ""
 echo -n -e "\033[1;33m~R@enter: \033[0m"
-read -r cmd
+read -r cmd < /dev/tty
 case "$cmd" in
     R@t|R@tscan|RSTzscan|RSTscan|R@scan) exec bash ~/R@t/rat.sh --run ;;
     *) echo -e "\033[1;33m[*] Run any of the commands to start the tool.\033[0m" ;;
