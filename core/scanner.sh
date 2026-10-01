@@ -8,10 +8,15 @@ ANIM_LEN=${#ANIM_FRAMES[@]}
 
 clear_line() { printf "\r\033[K"; }
 
+# ─── Fmt helper: 00h:00m:00s ─────────────────────────────
+fmt_time() {
+    local t=$1
+    printf "%02dh:%02dm:%02ds" $((t/3600)) $(((t%3600)/60)) $((t%60))
+}
+
 check_host_zero() {
     local host="$1" timeout="$2" dns_mode="$3" scan_mode="$4"
     local code="000"
-    # Anti-FUP modes = faster (2s less timeout)
     local eff_timeout=$timeout
     [ "$scan_mode" = "2" ] && eff_timeout=$(( timeout > 3 ? timeout - 2 : timeout ))
     [ "$scan_mode" = "4" ] && eff_timeout=$(( timeout > 3 ? timeout - 2 : timeout ))
@@ -62,61 +67,59 @@ check_host_active() {
     if [ "$code" != "000" ] && [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then echo "LIVE|$code"; else echo "DEAD"; fi
 }
 
-# ─── Shizuku Airplane Mode Recovery ──────────────────────
+# ─── Shizuku Airplane-cycle with REAL deadlock test ──────
 shizuku_airplane_cycle() {
+    # Real check: is the network ACTUALLY down right now?
+    local test=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "https://www.google.com/generate_204" 2>/dev/null)
+    if [ "$test" != "000" ]; then
+        # Network is alive — no deadlock, skip recovery
+        return 0
+    fi
     echo "${RED}[!] DEADLOCK DETECTED. EXECUTING AUTO-RECOVERY...${NC}"
     echo "${AQUA}[:.] SHIZUKU TOGGLED NETWORK. HANDSHAKING WITH CELL TOWER...${NC}"
-    termux-wifi-connectioninfo >/dev/null 2>&1
-    # Try via termux-api (Shizuku-like behaviour via Termux:API)
     cmd connectivity airplane-mode enable 2>/dev/null
     sleep 3
     cmd connectivity airplane-mode disable 2>/dev/null
-    sleep 3
+    sleep 4
     echo "${AQUA}[:.] NETWORK HANDSHAKE COMPLETE. VERIFYING INTEGRITY...${NC}"
-    sleep 2
+    # Verify it's really back
+    local tries=0
+    while [ $tries -lt 6 ]; do
+        test=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "https://www.google.com/generate_204" 2>/dev/null)
+        [ "$test" != "000" ] && break
+        sleep 3
+        tries=$((tries+1))
+    done
     echo "${GREEN}[+] NETWORK VERIFIED. RESUMING MATRIX SCAN...${NC}"
 }
 
-# ─── Handler for CTRL+C (interrupt) ──────────────────────
 handle_interrupt() {
     echo ""
     echo "${RED}[!] INTERRUPT DETECTED (Kill Switch Confirmed)${NC}"
     echo "${YELLOW}[?] Action: [P]ause session, [R]esume Scan, [E]xit & Save, or [S]top Entirely?${NC}"
-    printf "${YELLOW}[?] (P/R/E/S): ${NC}"
+    prompt_rat
     read intr_choice
     case "$intr_choice" in
         e|E)
             echo ""
             echo "${YELLOW}[!] Preserving Matrix State to Vault. Preparing Safe Exit...${NC}"
-            # Balance the current batch
             sleep 1
             local state_file=$(save_scan_state)
             echo "${GREEN}[*] Vault saved successfully: $state_file${NC}"
-            show_partial_summary
             show_next_prompt
             return 1
             ;;
-        p|P)
-            echo "${YELLOW}[!] Session paused. Press CTRL+C again to exit.${NC}"
-            sleep 3
-            return 0
-            ;;
-        s|S)
-            echo "${RED}[!] Stopping without saving.${NC}"
-            exit 0
-            ;;
-        *)
-            return 0
-            ;;
+        p|P) echo "${YELLOW}[!] Session paused. Press CTRL+C again to exit.${NC}"; sleep 3; return 0 ;;
+        s|S) echo "${RED}[!] Stopping without saving.${NC}"; exit 0 ;;
+        *) return 0 ;;
     esac
 }
 
-# ─── Full completion summary ─────────────────────────────
 show_full_summary() {
     local duration="$1" total="$2" zr="$3" bug="$4" blk="$5" bil="$6" pshd="$7" carrier="$8" target="$9" dns="${10}" logfile="${11}" zrfile="${12}" bugfile="${13}" blkfile="${14}"
     echo ""
     echo "${MAGENTA}╔═══════════════════════════════════════════════════════════════════╗${NC}"
-    echo "${MAGENTA}║              ${YELLOW}R•S•T ZERO-RATED SCANNER COMPLETE✓${NC}                   ${MAGENTA}║${NC}"
+    echo "${MAGENTA}║              ${YELLOW}R•S•T ZERO-RATED SCANNER COMPLETE✓${MAGENTA}                   ║${NC}"
     echo "${MAGENTA}╚═══════════════════════════════════════════════════════════════════╝${NC}"
     echo "${AQUA}Network Carrier   : $carrier${NC}"
     echo "${AQUA}Target List       : $target${NC}"
@@ -136,30 +139,6 @@ show_full_summary() {
     echo ""
     printf "${PURPLE}[Press Enter to return to Hub...]${NC}"
     read
-}
-
-show_partial_summary() {
-    local duration="$1" total="$2" zr="$3" bug="$4" blk="$5" bil="$6" carrier="$7" target="$8" dns="${9}" logfile="${10}" zrfile="${11}" bugfile="${12}" blkfile="${13}"
-    echo ""
-    echo "${GREEN}╔═══════════════════════════════════════════════════════════════════╗${NC}"
-    echo "${GREEN}║          R•S•T PARTIAL SCAN SAVED SUCCESSFULLY✓${NC}                   ${GREEN}║${NC}"
-    echo "${GREEN}╚═══════════════════════════════════════════════════════════════════╝${NC}"
-    echo "${AQUA}Network Carrier   : $carrier${NC}"
-    echo "${AQUA}Target List       : $target${NC}"
-    echo "${AQUA}DNS Cascade       : $dns${NC}"
-    echo "${AQUA}Scan Duration     : $duration${NC}"
-    echo "${AQUA}Total Scanned     : $total${NC}"
-    echo "${GREEN}Zero-Rated Found  : $zr 🟢${NC}"
-    echo "${GREEN}Hidden Bugs       : $bug 🔥${NC}"
-    echo "${RED}Blocked/Unknown   : $blk ❌${NC}"
-    echo "${RED}Billed/Redirect   : $bil 🚫${NC}"
-    echo "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo "${AQUA}[!] Log Saved To:${NC} $logfile"
-    echo "${GREEN}[!] Clean Zero-Rated List Saved To:${NC} $zrfile"
-    echo "${RED}[!] Clean Hidden-Bugs List Saved To:${NC} $bugfile"
-    echo "${RED}[!] Evidence Ledger Saved To:${NC} $blkfile"
-    echo "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
 }
 
 # ─── Zero-Rated Engine ───────────────────────────────────
@@ -188,7 +167,6 @@ run_scan_zero() {
     export -f check_host_zero resolve_host
     export TIMEOUT DNS_MODE SCAN_MODE THREADS TOTAL detail_log full_log
 
-    local PAUSED=0
     trap 'handle_interrupt; [ $? -eq 1 ] && return' INT
 
     echo ""
@@ -219,7 +197,6 @@ run_scan_zero() {
     local batch_idx=0
 
     for batch_file in "${batches[@]}"; do
-        [ $PAUSED -eq 1 ] && break
         batch_idx=$((batch_idx + 1))
         local batch_hosts=$(cat "$batch_file" | grep -v '^$')
         [ -z "$batch_hosts" ] && continue
@@ -230,7 +207,6 @@ run_scan_zero() {
         local tmp_res="$tmp_dir/tmp_res.txt"
         echo "$batch_hosts" | xargs -P "$THREADS" -I {} bash -c 'r=$(check_host_zero "{}" "$TIMEOUT" "$DNS_MODE" "$SCAN_MODE"); printf "%s %s\n" "$r" "{}"' > "$tmp_res" 2>/dev/null
 
-        # PHASE 1: count batch (counters frozen)
         while IFS=' ' read -r result host || [ -n "$host" ]; do
             [ -z "$host" ] && continue
             results+=("$result|$host")
@@ -238,15 +214,13 @@ run_scan_zero() {
             anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
             local frame="${ANIM_FRAMES[anim_pos]}"
             local fcol="${ANIM_COLOURS[anim_pos]}"
-            local elapsed_sec=$(( $(date +%s) - start_time ))
-            local em=$((elapsed_sec / 60)); local er=$((elapsed_sec % 60))
-            local estr=$(printf "%02dm:%02ds" $em $er)
+            local esec=$(( $(date +%s) - start_time ))
+            local estr=$(fmt_time $esec)
             local etastr="Calculating..."
             local eta_basis=$((total_scanned + batch_done))
-            if [ $eta_basis -gt 5 ] && [ $elapsed_sec -gt 5 ]; then
-                local eta=$(( (TOTAL - eta_basis) * elapsed_sec / eta_basis ))
-                local etm=$((eta / 60)); local etr=$((eta % 60))
-                etastr=$(printf "%02dm:%02ds" $etm $etr)
+            if [ $eta_basis -gt 5 ] && [ $esec -gt 5 ]; then
+                local eta=$(( (TOTAL - eta_basis) * esec / eta_basis ))
+                etastr=$(fmt_time $eta)
             fi
             clear_line
             printf "${fcol}[%s]${NC} ⚡ %d/%d (⚙️) | %02d/%d 🌐 | ${GREEN}🟢 0Rated: $zero_rated${NC} | ${RED}🔥 Bugs: $bugs${NC}" \
@@ -256,24 +230,28 @@ run_scan_zero() {
         done < "$tmp_res"
         rm -f "$tmp_res"
 
-        # PHASE 2: scroll results
-        clear_line
+        # WATCHDOG
+        echo ""
+        printf "${YELLOW}[..] WATCHDOG: Verifying Batch $batch_idx Integrity...${NC}"
+        sleep 1
+        printf "\r\033[K"
+
+        # Scroll results (arrows NOT colored)
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
             local host="${entry##*|}"
             local code="${st#*|}"
             st="${st%|*}"
             case "$st" in
-                ZERO_RATED) echo "${GREEN}✅ ZERO-RATED ➜ ↓↓${NC}"; echo "${WHITE}$host (HTTP:$code)${NC}" ;;
-                BILLED)     echo "${RED}🚫 BILLED ➜ ↓↓${NC}";     echo "${WHITE}$host (HTTP:$code)${NC}" ;;
-                BUG)        echo "${RED}🔥 HIDDEN-BUG ➜ ↓↓${NC}"; echo "${WHITE}$host (HTTP:$code)${NC}" ;;
-                *)          echo "${RED}❌ BLOCKED ➜ ↓↓${NC}";   echo "${WHITE}$host (HTTP:$code)${NC}" ;;
+                ZERO_RATED) echo "${GREEN}✅ ZERO-RATED${NC} ➜ ↓↓"; echo "${WHITE}$host (HTTP:$code)${NC}" ;;
+                BILLED)     echo "${RED}🚫 BILLED${NC} ➜ ↓↓";     echo "${WHITE}$host (HTTP:$code)${NC}" ;;
+                BUG)        echo "${RED}🔥 HIDDEN-BUG${NC} ➜ ↓↓"; echo "${WHITE}$host (HTTP:$code)${NC}" ;;
+                *)          echo "${RED}❌ BLOCKED${NC} ➜ ↓↓";   echo "${WHITE}$host (HTTP:$code)${NC}" ;;
             esac
             echo "$st $host" >> "$detail_log"
             echo "[$st] $host" >> "$full_log"
         done
 
-        # Update counters
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
             st="${st%|*}"
@@ -298,26 +276,28 @@ run_scan_zero() {
             elif [ "$DEADLOCK_MODE" = "3" ]; then
                 shizuku_airplane_cycle
             fi
+            # Mode 1: no wait at all
         fi
     done
 
     trap - INT
     rm -rf "$tmp_dir"
 
-    local end_time=$(date +%s)
-    local dsec=$((end_time - start_time))
-    local dstr=$(printf "%02dh:%02dm:%02ds" $((dsec/3600)) $(((dsec%3600)/60)) $((dsec%60)))
+    local esec=$(( $(date +%s) - start_time ))
+    local dstr=$(fmt_time $esec)
 
-    local dstr2=$(date +%Y%m%d_%H%M)
+    local dstr2=$(date +%Y%m%d)
+    local rnd=$(printf "%04d" $((RANDOM % 10000)))
     local sc2=$(echo "$CARRIER" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
-    local tp=""; [ -n "$TAG" ] && tp="_$TAG"
-    local bn="0rtdscan_${sc2}_nn_${dstr2}${tp}"
+    local tp="nn"; [ -n "$TAG" ] && tp="$TAG"
 
-    cp "$full_log" "$WORK_DIR/${bn}_fullogs.txt" 2>/dev/null
-    local logfile="$WORK_DIR/${bn}_fullogs.txt"
-    local zrfile="$WORK_DIR/0rtdscan_0list_${sc2}_nn_${dstr2}${tp}.txt"
-    local bugfile="$WORK_DIR/0rtdscan_bugslist_${sc2}_nn_${dstr2}${tp}.txt"
-    local blkfile="$WORK_DIR/0rtdscan_blocked_${sc2}_nn_${dstr2}${tp}.txt"
+    local bn="0rtdscan"
+    local logfile="$WORK_DIR/${bn}_fullogs_${sc2}_${tp}_${dstr2}_${rnd}.txt"
+    local zrfile="$WORK_DIR/${bn}_0list_${sc2}_${tp}_${dstr2}_${rnd}.txt"
+    local bugfile="$WORK_DIR/${bn}_bugslist_${sc2}_${tp}_${dstr2}_${rnd}.txt"
+    local blkfile="$WORK_DIR/${bn}_blocked_${sc2}_${tp}_${dstr2}_${rnd}.txt"
+
+    cp "$full_log" "$logfile" 2>/dev/null
     [ $zero_rated -gt 0 ] && grep "^ZERO_RATED" "$detail_log" | awk '{print $2}' > "$zrfile"
     [ $bugs -gt 0 ] && grep "^BUG" "$detail_log" | awk '{print $2}' > "$bugfile"
     grep "^BLOCKED\|^BILLED" "$detail_log" | awk '{print $2}' > "$blkfile"
@@ -345,7 +325,6 @@ run_scan_active() {
     export -f check_host_active resolve_host
     export TIMEOUT DNS_MODE THREADS TOTAL detail_log full_log
 
-    local PAUSED=0
     trap 'PAUSED=1; echo ""; echo "${YELLOW}[!] Saving state...${NC}"; STATE_FILE=$(save_scan_state); echo "${GREEN}[+] Saved: $STATE_FILE${NC}"; show_next_prompt; return' INT TERM
 
     echo ""
@@ -369,7 +348,6 @@ run_scan_active() {
     local batch_idx=0
 
     for batch_file in "${batches[@]}"; do
-        [ $PAUSED -eq 1 ] && break
         batch_idx=$((batch_idx + 1))
         local batch_hosts=$(cat "$batch_file" | grep -v '^$')
         [ -z "$batch_hosts" ] && continue
@@ -387,13 +365,13 @@ run_scan_active() {
             anim_pos=$(( (anim_pos + 1) % ANIM_LEN ))
             local frame="${ANIM_FRAMES[anim_pos]}"
             local fcol="${ANIM_COLOURS[anim_pos]}"
-            local elapsed_sec=$(( $(date +%s) - start_time ))
-            local estr=$(printf "%02dm:%02ds" $((elapsed_sec / 60)) $((elapsed_sec % 60)))
+            local esec=$(( $(date +%s) - start_time ))
+            local estr=$(fmt_time $esec)
             local etastr="Calculating..."
             local eta_basis=$((total_done + batch_done))
-            if [ $eta_basis -gt 5 ] && [ $elapsed_sec -gt 5 ]; then
-                local eta=$(( (TOTAL - eta_basis) * elapsed_sec / eta_basis ))
-                etastr=$(printf "%02dm:%02ds" $((eta / 60)) $((eta % 60)))
+            if [ $eta_basis -gt 5 ] && [ $esec -gt 5 ]; then
+                local eta=$(( (TOTAL - eta_basis) * esec / eta_basis ))
+                etastr=$(fmt_time $eta)
             fi
             clear_line
             printf "${fcol}[%s]${NC} ⚡ %d/%d (⚙️) | %02d/%d 🌐 | ${GREEN}🟢 LIVE: $live${NC} | ${RED}❌ DEAD: $dead${NC}" \
@@ -403,7 +381,11 @@ run_scan_active() {
         done < "$tmp_res"
         rm -f "$tmp_res"
 
-        clear_line
+        echo ""
+        printf "${YELLOW}[..] WATCHDOG: Verifying Batch $batch_idx Integrity...${NC}"
+        sleep 1
+        printf "\r\033[K"
+
         for entry in "${results[@]}"; do
             local st="${entry%|*}"
             local host="${entry##*|}"
@@ -443,12 +425,12 @@ run_scan_active() {
     trap - INT TERM
     rm -rf "$tmp_dir"
 
-    local dsec=$(( $(date +%s) - start_time ))
-    local dstr=$(printf "%02dh:%02dm:%02ds" $((dsec/3600)) $(((dsec%3600)/60)) $((dsec%60)))
+    local esec=$(( $(date +%s) - start_time ))
+    local dstr=$(fmt_time $esec)
 
     echo ""
     echo "${GREEN}╔═══════════════════════════════════════════════════════════════════╗${NC}"
-    echo "${GREEN}║             R•S•T ACTIVE SCAN COMPLETE✓${NC}                       ${GREEN}║${NC}"
+    echo "${GREEN}║             ${YELLOW}R•S•T ACTIVE SCAN COMPLETE✓${GREEN}                       ║${NC}"
     echo "${GREEN}╚═══════════════════════════════════════════════════════════════════╝${NC}"
     echo "${AQUA}Network Carrier : $CARRIER${NC}"
     echo "${AQUA}Scan Duration   : $dstr${NC}"
