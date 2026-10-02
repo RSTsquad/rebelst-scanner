@@ -2,11 +2,18 @@
 #  SCANNING ENGINES
 # =========================================================
 
-ANIM_FRAMES=("R@ - - -" "- R@ - -" "- - R@ -" "- - - R@")
+ANIM_FRAMES=("R@ - - - -" "- R@ - - -" "- - R@ - -" "- - - R@ -" "- - - - R@")
 ANIM_COLOURS=("$YELLOW" "$CYAN" "$CYAN" "$YELLOW")
 ANIM_LEN=${#ANIM_FRAMES[@]}
 
 clear_line() { printf "\r\033[K"; }
+
+# Clear BOTH progress bar lines
+clear_both_lines() {
+    printf "\033[K"         # clear current (bar) line
+    printf "\033[1B\033[K"  # move down 1, clear timer line
+    printf "\033[1A"        # back up
+}
 
 fmt_time() {
     local t=$1
@@ -24,7 +31,7 @@ check_host_zero() {
         [ -n "$http_code" ] && [ "$http_code" != "000" ] && code="$http_code"
         if [ "$code" != "000" ]; then
             if [ "$code" = "200" ] || [ "$code" = "201" ] || [ "$code" = "204" ]; then echo "ZERO_RATED|$code"; return
-            elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ]; then echo "BILLED|$code"; return
+            elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "308" ]; then echo "BILLED|$code"; return
             elif [[ "$code" =~ ^[4-5][0-9][0-9]$ ]]; then echo "BUG|$code"; return
             else echo "BLOCKED|$code"; return; fi
         fi
@@ -32,7 +39,7 @@ check_host_zero() {
         [ -n "$http_code" ] && [ "$http_code" != "000" ] && code="$http_code"
         if [ "$code" != "000" ]; then
             if [ "$code" = "200" ] || [ "$code" = "201" ] || [ "$code" = "204" ]; then echo "ZERO_RATED|$code"; return
-            elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ]; then echo "BILLED|$code"; return
+            elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "308" ]; then echo "BILLED|$code"; return
             elif [[ "$code" =~ ^[4-5][0-9][0-9]$ ]]; then echo "BUG|$code"; return
             else echo "BLOCKED|$code"; return; fi
         fi
@@ -96,9 +103,8 @@ handle_interrupt() {
         e|E)
             echo ""
             echo "${YELLOW}[!] Preserving Matrix State to Vault. Preparing Safe Exit...${NC}"
-            sleep 1
-            local state_file=$(save_scan_state)
-            echo "${GREEN}[*] Vault saved successfully: $state_file${NC}"
+            save_scan_state
+            echo "${GREEN}[*] Vault saved successfully: $_SAVED_STATE_FILE${NC}"
             show_next_prompt
             return 1 ;;
         p|P) echo "${YELLOW}[!] Session paused. Press CTRL+C again to exit.${NC}"; sleep 3; return 0 ;;
@@ -133,6 +139,7 @@ show_full_summary() {
     read
 }
 
+# ─── Zero-Rated Engine ───────────────────────────────────
 run_scan_zero() {
     mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
     local TARGET_FILE="$1" TOTAL="$2" TIMEOUT="$3" BATCH="$4"
@@ -165,6 +172,10 @@ run_scan_zero() {
     echo "${YELLOW}Scanning in progress...🚀 ${NC}"
     echo "${YELLOW}!]To pause or stop long press CTRL + C(or tap 6times)${NC}"
     echo "${AQUA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -n "${YELLOW}[+] Preparing scanner...${NC}"
+    sleep 2.5
+    echo " ${GREEN}ready${NC}"
     echo ""
 
     local tmp_dir="$RAT_CONFIG/tmp_batch"
@@ -221,11 +232,12 @@ run_scan_zero() {
         done < "$tmp_res"
         rm -f "$tmp_res"
 
-        # WATCHDOG: bar visible 1s → clear → watchdog 1s → clear → scroll
-        sleep 1
-        clear_line
+        # Clear BOTH lines (bar + timer)
+        clear_both_lines
+
+        # Brief watchdog flash (visual only, no long wait)
         printf "${YELLOW}[..] WATCHDOG: Verifying Batch $batch_idx Integrity...${NC}"
-        sleep 1
+        sleep 0.5
         printf "\r\033[K"
 
         for entry in "${results[@]}"; do
@@ -267,6 +279,7 @@ run_scan_zero() {
             elif [ "$DEADLOCK_MODE" = "3" ]; then
                 shizuku_airplane_cycle
             fi
+            # Mode 1: absolutely no wait
         fi
     done
 
@@ -296,6 +309,7 @@ run_scan_zero() {
     show_next_prompt
 }
 
+# ─── Active Engine ───────────────────────────────────────
 run_scan_active() {
     mkdir -p "$RAT_LOGS" "$RAT_CONFIG"
     local TARGET_FILE="$1" TOTAL="$2" TIMEOUT="$3" BATCH="$4"
@@ -314,12 +328,16 @@ run_scan_active() {
     export -f check_host_active resolve_host
     export TIMEOUT DNS_MODE THREADS TOTAL detail_log full_log
 
-    trap 'PAUSED=1; echo ""; echo "${YELLOW}[!] Saving state...${NC}"; STATE_FILE=$(save_scan_state); echo "${GREEN}[+] Saved: $STATE_FILE${NC}"; show_next_prompt; return' INT TERM
+    trap 'PAUSED=1; echo ""; echo "${YELLOW}[!] Saving state...${NC}"; save_scan_state; echo "${GREEN}[+] Saved: $_SAVED_STATE_FILE${NC}"; show_next_prompt; return' INT TERM
 
     echo ""
     echo "${AQUA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo "${YELLOW}Scanning in progress (ACTIVE MODE)...🚀${NC}"
     echo "${AQUA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -n "${YELLOW}[+] Preparing scanner...${NC}"
+    sleep 2.5
+    echo " ${GREEN}ready${NC}"
     echo ""
 
     local tmp_dir="$RAT_CONFIG/tmp_batch"
@@ -370,10 +388,9 @@ run_scan_active() {
         done < "$tmp_res"
         rm -f "$tmp_res"
 
-        sleep 1
-        clear_line
+        clear_both_lines
         printf "${YELLOW}[..] WATCHDOG: Verifying Batch $batch_idx Integrity...${NC}"
-        sleep 1
+        sleep 0.5
         printf "\r\033[K"
 
         for entry in "${results[@]}"; do
@@ -426,7 +443,7 @@ run_scan_active() {
     echo "${AQUA}Scan Duration   : $dstr${NC}"
     echo "${AQUA}Total Scanned   : $total_done / $TOTAL${NC}"
     echo "${GREEN}🟢 LIVE         : $live${NC}"
-    echo "${RED}❌ DEAD         : $dead${NC}"
+    echo "${RED}❌ DEAD${NC}"         : $dead
     echo ""
     printf "${PURPLE}[Press Enter to return to Hub...]${NC}"
     read
