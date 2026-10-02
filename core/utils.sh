@@ -156,7 +156,6 @@ normalize_carrier() {
     esac
 }
 
-# ─── Simple animated analyzing spinner (used for skip mode) ─
 animate_analyzing() {
     local total_secs="$1"
     local frames=("R@ - - - -" "- R@ - - -" "- - R@ - -" "- - - R@ -" "- - - - R@")
@@ -177,8 +176,6 @@ animate_analyzing() {
     tput cnorm 2>/dev/null
 }
 
-# ─── Custom Network Setup with real probing ──────────────
-# Sets global _RST_CARRIER, does NOT emit it via stdout
 custom_network_setup() {
     local scan_mode="$1"
     local TMP=$(mktemp -d)
@@ -210,7 +207,6 @@ custom_network_setup() {
         n_idx=$((n_idx+1))
     done
 
-    # Animate while probes are running
     while [ "$(ls "$TMP"/*.done 2>/dev/null | wc -l)" -lt 7 ]; do
         local idx=$(( i % flen ))
         printf "\r\033[K${AQUA}[:°] ANALYZING NETWORK...${NC} [ ${colours[$idx]}${frames[$idx]}${NC} ] "
@@ -292,13 +288,14 @@ resolve_host() {
     return 1
 }
 
+# ─── Save paused state (sets global _SAVED_STATE_FILE) ────
 save_scan_state() {
     local rnd=$(printf "%04d" $((RANDOM % 10000)))
     local sc=$(echo "$CARRIER" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
-    local state_file="$WORK_DIR/PAUSED_${sc}_$(date +%d_%Y%m%d_%H%M)_${rnd}.txt"
+    _SAVED_STATE_FILE="$WORK_DIR/PAUSED_${sc}_$(date +%d_%Y%m%d_%H%M)_${rnd}.txt"
     local elapsed_sec=0
     [ -n "$start_time" ] && [ "$start_time" -gt 0 ] 2>/dev/null && elapsed_sec=$(( $(date +%s) - start_time ))
-    cat > "$state_file" << EOF
+    cat > "$_SAVED_STATE_FILE" << EOF
 {
     "target_file": "$TARGET_FILE",
     "total_scanned": ${total_scanned:-0},
@@ -321,9 +318,8 @@ save_scan_state() {
     "batch_enabled": "$BATCH_ENABLED"
 }
 EOF
-    local remaining_file="${state_file%.txt}_hosts.txt"
+    local remaining_file="${_SAVED_STATE_FILE%.txt}_hosts.txt"
     tail -n +$(( ${total_scanned:-0} + 1 )) "$TARGET_FILE" > "$remaining_file" 2>/dev/null
-    echo "$state_file"
 }
 
 list_paused_scans() {
