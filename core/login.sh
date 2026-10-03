@@ -37,9 +37,7 @@ scanner_login() {
     while true; do
         printf "${YELLOW}ENTER USERNAME: ${NC}"
         read USERNAME
-        if [ -z "$USERNAME" ]; then
-            echo "${RED}[!] Username required${NC}"; continue
-        fi
+        if [ -z "$USERNAME" ]; then echo "${RED}[!] Username required${NC}"; continue; fi
         if [ ${#USERNAME} -gt 10 ]; then
             echo "${RED}[!] Username must not exceed 10 characters (incl. spaces). You entered ${#USERNAME}.${NC}"; continue
         fi
@@ -51,12 +49,9 @@ scanner_login() {
         read vkey
         local RESULT=$(verify_vkey "$vkey")
         case "$RESULT" in
-            "INVALID")
-                echo "${RED}[!] INCORRECT V-KEY! Please try again.${NC}"; continue ;;
-            "WRONG_DEVICE")
-                echo "${RED}[!] INVALID: This key was generated for a different device! Please try again.${NC}"; continue ;;
-            "EXPIRED")
-                echo "${RED}[!] INVALID: Your V-Key has expired! Generate a new one.${NC}"; continue ;;
+            "INVALID") echo "${RED}[!] INCORRECT V-KEY! Please try again.${NC}"; continue ;;
+            "WRONG_DEVICE") echo "${RED}[!] INVALID: This key was generated for a different device! Please try again.${NC}"; continue ;;
+            "EXPIRED") echo "${RED}[!] INVALID: Your V-Key has expired! Generate a new one.${NC}"; continue ;;
             *)
                 echo "$vkey" > "$RAT_KEY_FILE"
                 echo "$USERNAME" > "$RAT_USER_FILE"
@@ -96,7 +91,7 @@ command_hub() {
             u|U) update_tool ;;
             x|X) echo "${RED}[!] Uninstalling...${NC}"; rm -rf "$RAT_DIR"; rm -f "$PREFIX/bin/R@t" "$PREFIX/bin/R@tscan" "$PREFIX/bin/RSTzscan"; echo "${GREEN}[+] Uninstalled.${NC}"; exit 0 ;;
             e|E) echo "${CYAN}Goodbye!${NC}"; exit 0 ;;
-            *) echo "${RED}Invalid option${NC}"; sleep 1 ;;
+            *) echo "${RED}[!] Invalid option. Please try again.${NC}"; sleep 1 ;;
         esac
     done
 }
@@ -109,15 +104,21 @@ main_menu() {
 start_execution() {
     local USERNAME="$1" DEVICE_ID="$2" EXPIRY_FMT="$3"
     show_header_with_user "$USERNAME" "$DEVICE_ID" "$EXPIRY_FMT"
-    echo "${MAGENTA}╔═•Target directory where to look for & save files•═════════════${NC}"
-    echo "${AQUA}║ [1]R@t folder (Default)${NC}"
-    echo "${AQUA}║ [2]Download folder${NC}"
-    echo "${AQUA}║ [3]Current tool folder${NC}"
-    echo "${AQUA}║ [4]Custom path(inside current folder)${NC}"
-    echo "${AQUA}║ [5]Custom path(inside phone storage)${NC}"
-    echo "${MAGENTA}╚═══════════════════════════════════════════════════════════════${NC}"
-    prompt_rat
-    read dir_choice
+
+    # Target directory
+    while true; do
+        echo "${MAGENTA}╔═•Target directory where to look for & save files•═════════════${NC}"
+        echo "${AQUA}║ [1]R@t folder (Default)${NC}"
+        echo "${AQUA}║ [2]Download folder${NC}"
+        echo "${AQUA}║ [3]Current tool folder${NC}"
+        echo "${AQUA}║ [4]Custom path(inside current folder)${NC}"
+        echo "${AQUA}║ [5]Custom path(inside phone storage)${NC}"
+        echo "${MAGENTA}╚═══════════════════════════════════════════════════════════════${NC}"
+        prompt_rat
+        read dir_choice
+        [[ "$dir_choice" =~ ^[1-5]$ ]] && break
+        echo "${RED}[!] Enter 1, 2, 3, 4, or 5.${NC}"
+    done
 
     local WORK_DIR="$RAT_SAVED"
     case "$dir_choice" in
@@ -235,8 +236,12 @@ start_execution() {
     echo "${AQUA}║ [3]Bypass & scan with active data(full scan-standard pro)${NC}"
     echo "${AQUA}║ [4]Bypass & scan with active data Anti-FUP mode(fast scan-low bandwidth)${NC}"
     echo "${MAGENTA}╚═══════════════════════════════════════════════════════════════${NC}"
-    prompt_rat; read scan_mode
-    [ -z "$scan_mode" ] && scan_mode="2"
+    while true; do
+        prompt_rat; read scan_mode
+        [ -z "$scan_mode" ] && scan_mode="2"
+        [[ "$scan_mode" =~ ^[1-4]$ ]] && break
+        echo "${RED}[!] Enter 1, 2, 3, or 4.${NC}"
+    done
 
     # DNS
     echo ""
@@ -247,13 +252,37 @@ start_execution() {
     echo "${AQUA}║ [4]Google (8.8.8.8)${NC}"
     echo "${YELLOW}║ [!]You can combine them! e.g type 134 or 34 or 1${NC}"
     echo "${MAGENTA}╚════════════════════════════════════════════════════════════════${NC}"
-    prompt_rat; read dns_choice
-    [ -z "$dns_choice" ] && dns_choice="1"
+    while true; do
+        prompt_rat; read dns_choice
+        [ -z "$dns_choice" ] && dns_choice="1"
+        [[ "$dns_choice" =~ ^[1-4]+$ ]] && break
+        echo "${RED}[!] Enter 1-4 or a combo like 34, 134.${NC}"
+    done
 
-    printf "${AQUA}Enter timeout in seconds(default 10): ${NC}\n"; prompt_rat; read timeout; [ -z "$timeout" ] && timeout=10
-    printf "${AQUA}Enter max Retries(default 0): ${NC}\n"; prompt_rat; read retries; [ -z "$retries" ] && retries=0
-    printf "${AQUA}Enter concurrency/Threads(default 100): ${NC}\n"; prompt_rat; read threads; [ -z "$threads" ] && threads=100
-    printf "${AQUA}Enter batch size(default 100): ${NC}\n"; prompt_rat; read batch_size; [ -z "$batch_size" ] && batch_size=100
+    while true; do
+        printf "${AQUA}Enter timeout in seconds(default 10): ${NC}\n"; prompt_rat; read timeout
+        [ -z "$timeout" ] && timeout=10
+        [[ "$timeout" =~ ^[0-9]+$ ]] && break
+        echo "${RED}[!] Enter a number.${NC}"
+    done
+    while true; do
+        printf "${AQUA}Enter max Retries(default 0): ${NC}\n"; prompt_rat; read retries
+        [ -z "$retries" ] && retries=0
+        [[ "$retries" =~ ^[0-9]+$ ]] && break
+        echo "${RED}[!] Enter a number.${NC}"
+    done
+    while true; do
+        printf "${AQUA}Enter concurrency/Threads(default 100): ${NC}\n"; prompt_rat; read threads
+        [ -z "$threads" ] && threads=100
+        [[ "$threads" =~ ^[0-9]+$ ]] && break
+        echo "${RED}[!] Enter a number.${NC}"
+    done
+    while true; do
+        printf "${AQUA}Enter batch size(default 100): ${NC}\n"; prompt_rat; read batch_size
+        [ -z "$batch_size" ] && batch_size=100
+        [[ "$batch_size" =~ ^[0-9]+$ ]] && break
+        echo "${RED}[!] Enter a number.${NC}"
+    done
     printf "${AQUA}Mark your saved files as? or press enter to skip: ${NC}\n"; prompt_rat; read file_tag
 
     # DEADLOCK
@@ -263,8 +292,12 @@ start_execution() {
     echo "${AQUA}║ [2]Auto-standby(wait for WiFi/Data to auto heal${NC}"
     echo "${AQUA}║ [3]Shizuku Auto-Airplane Mode (Requires Shizuku)${NC}"
     echo "${MAGENTA}╚════════════════════════════════════════════════════════════════${NC}"
-    prompt_rat; read deadlock_choice
-    [ -z "$deadlock_choice" ] && deadlock_choice="1"
+    while true; do
+        prompt_rat; read deadlock_choice
+        [ -z "$deadlock_choice" ] && deadlock_choice="1"
+        [[ "$deadlock_choice" =~ ^[1-3]$ ]] && break
+        echo "${RED}[!] Enter 1, 2, or 3.${NC}"
+    done
 
     echo ""
     echo "${MAGENTA}╔═•LOGGING CONFIGURATION•════════════════════════════════════════${NC}"
@@ -273,7 +306,6 @@ start_execution() {
     prompt_rat; read log_mode
     echo "${AQUA}[+]Standard logging enabled.${NC}"
 
-    # ENGINE CONFIG
     echo ""
     local dns_display="$dns_choice"; [ "$dns_choice" = "1" ] && dns_display="Default"
     echo "${MAGENTA}╔═•ENGINE CONFIGURATION•═════════════════════════════════════════${NC}"
@@ -285,21 +317,24 @@ start_execution() {
     echo "${YELLOW}║ 🦯 DNS CHAIN     : $dns_display${NC}"
     echo "${MAGENTA}╚════════════════════════════════════════════════════════════════${NC}"
 
-    # CUSTOM NETWORK SETUP
+    # CUSTOM NETWORK
     echo ""
     echo "${MAGENTA}╔═•CUSTOM NETWORK SETUP•════════════════════════════════════════${NC}"
     echo "${AQUA}║ [1] Skip (Auto-Detect Network / Default Wi-Fi) [Default]${NC}"
     echo "${AQUA}║ [2] Proceed Custom Setup Network${NC}"
     echo "${MAGENTA}╚════════════════════════════════════════════════════════════════${NC}"
-    prompt_rat; read net_choice
-    [ -z "$net_choice" ] && net_choice="1"
+    while true; do
+        prompt_rat; read net_choice
+        [ -z "$net_choice" ] && net_choice="1"
+        [[ "$net_choice" =~ ^[12]$ ]] && break
+        echo "${RED}[!] Enter 1 or 2.${NC}"
+    done
 
     local CARRIER=""
     if [ "$net_choice" = "2" ]; then
         custom_network_setup "$scan_mode"
         CARRIER="$_RST_CARRIER"
     else
-        # Skip mode: show real animation for 2s, then detect carrier
         animate_analyzing 2
         CARRIER=$(detect_carrier)
         echo "${GREEN}[+] Network Carrier: $CARRIER${NC}"
