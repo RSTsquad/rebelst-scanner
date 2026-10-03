@@ -24,13 +24,10 @@ echo -e "\033[1;32m[+] It appears this action is already set now tool will proce
 sleep 2
 echo ""
 
-# PIN loop with retry — read from /dev/tty
 while true; do
     echo -n -e "\033[1;33m[🔒] Enter The tool PIN to proceed: \033[0m"
     read -r pin < /dev/tty
-    if [ "$pin" = "083312" ]; then
-        break
-    fi
+    if [ "$pin" = "083312" ]; then break; fi
     echo -e "\033[0;31m[!] INCORRECT PIN, CORRECT PIN IS REQUIRED RE ENTER THE CORRECT PIN NOW\033[0m"
 done
 
