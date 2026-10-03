@@ -2,7 +2,7 @@
 #  CONFIGURATION
 # =========================================================
 
-RAT_VERSION="3.1"
+RAT_VERSION="3.2"
 RAT_DIR="$HOME/R@t"
 RAT_CONFIG="$RAT_DIR/.config"
 RAT_KEY_FILE="$RAT_CONFIG/.vkey"
@@ -17,7 +17,6 @@ SCANNER_PIN="083312"
 RAT_WEB="https://rst-freenet-hub.base44.app"
 GITHUB_RAW="https://raw.githubusercontent.com/RSTsquad/rebelst-scanner/main"
 
-# ─── Colours ──────────────────────────────────────────────
 RED=$(printf '\033[0;31m')
 GREEN=$(printf '\033[0;32m')
 YELLOW=$(printf '\033[1;33m')
@@ -31,5 +30,4 @@ BOLD=$(printf '\033[1m')
 WHITE=$(printf '\033[1;37m')
 NC=$(printf '\033[0m')
 
-# ─── Custom prompt ────────────────────────────────────────
 prompt_rat() { printf "${GREEN}~${BLUE}R@${CYAN}en${RED}ter${NC}: "; }
