@@ -103,18 +103,19 @@ install_rat() {
     esac
 }
 
+# ─── Update: ALWAYS redownload all files ─────────────────
 update_tool() {
     echo "${AQUA}[+] Checking for updates...${NC}"
     local REMOTE_VERSION
     REMOTE_VERSION=$(curl -s --max-time 10 "$GITHUB_RAW/core/config.sh" | grep -m1 'RAT_VERSION="' | cut -d'"' -f2)
-    if [ -z "$REMOTE_VERSION" ]; then echo "${RED}[!] Could not fetch remote version.${NC}"; sleep 2; return; fi
-    if [ "$REMOTE_VERSION" = "$RAT_VERSION" ]; then
-        echo "${GREEN}[+] You have the latest version ($RAT_VERSION).${NC}"; sleep 2; return
+    if [ -z "$REMOTE_VERSION" ]; then
+        echo "${RED}[!] Could not reach server. Check internet.${NC}"; sleep 2; return
     fi
-    echo "${YELLOW}[!] New version: $REMOTE_VERSION (yours: $RAT_VERSION)${NC}"
-    echo "${YELLOW}[!] Downloading update...${NC}"
+    echo "${YELLOW}[i] Local: $RAT_VERSION | Remote: $REMOTE_VERSION${NC}"
+    echo "${YELLOW}[!] Downloading latest files...${NC}"
     for file in rat.sh install.sh core/config.sh core/utils.sh core/ui.sh core/login.sh core/scanner.sh; do
         curl -s -o "$RAT_DIR/$file" "$GITHUB_RAW/$file"
+        echo "${GREEN}[+] $file updated${NC}"
     done
     chmod +x "$RAT_DIR/rat.sh" 2>/dev/null
     chmod +x "$RAT_DIR/core"/*.sh 2>/dev/null
@@ -158,8 +159,8 @@ normalize_carrier() {
 
 animate_analyzing() {
     local total_secs="$1"
-    local frames=("R@ - - - -" "- R@ - - -" "- - R@ - -" "- - - R@ -" "- - - - R@")
-    local colours=("$YELLOW" "$CYAN" "$CYAN" "$CYAN" "$YELLOW")
+    local frames=("R@ - - - -" "- R@ - - -" "- - R@ - -" "- - - R@ -" "- - - - R@" "- - - R@ -" "- - R@ - -" "- R@ - - -")
+    local colours=("$YELLOW" "$CYAN" "$CYAN" "$CYAN" "$YELLOW" "$CYAN" "$CYAN" "$CYAN")
     local flen=${#frames[@]}
     local i=0
     local elapsed=0
@@ -179,24 +180,14 @@ animate_analyzing() {
 custom_network_setup() {
     local scan_mode="$1"
     local TMP=$(mktemp -d)
-    local SITES=(
-        "CELLC|nofunds.cellc.mobi"
-        "MTN|nofunds.mtn.co.za"
-        "VODACOM|connectu.vodacom.co.za"
-        "RAIN|www.rain.co.za"
-        "TELKOM|www.telkom.co.za"
-    )
+    local SITES=("CELLC|nofunds.cellc.mobi" "MTN|nofunds.mtn.co.za" "VODACOM|connectu.vodacom.co.za" "RAIN|www.rain.co.za" "TELKOM|www.telkom.co.za")
     local NEUTRAL=("www.google.com/generate_204" "www.cloudflare.com")
-
     _RST_CARRIER=""
-
-    local frames=("R@ - - - -" "- R@ - - -" "- - R@ - -" "- - - R@ -" "- - - - R@")
-    local colours=("$YELLOW" "$CYAN" "$CYAN" "$CYAN" "$YELLOW")
+    local frames=("R@ - - - -" "- R@ - - -" "- - R@ - -" "- - - R@ -" "- - - - R@" "- - - R@ -" "- - R@ - -" "- R@ - - -")
+    local colours=("$YELLOW" "$CYAN" "$CYAN" "$CYAN" "$YELLOW" "$CYAN" "$CYAN" "$CYAN")
     local flen=${#frames[@]}
     local i=0
-
     tput civis 2>/dev/null
-
     local s
     for s in "${SITES[@]}"; do
         ( code=$(curl -s -o /dev/null -m 6 -w "%{http_code}" "https://${s#*|}" 2>/dev/null); echo "${code:-000}" > "$TMP/site_${s%%|*}.done" ) &
@@ -206,7 +197,6 @@ custom_network_setup() {
         ( code=$(curl -s -o /dev/null -m 6 -w "%{http_code}" "https://$n" 2>/dev/null); echo "${code:-000}" > "$TMP/net_$n_idx.done" ) &
         n_idx=$((n_idx+1))
     done
-
     while [ "$(ls "$TMP"/*.done 2>/dev/null | wc -l)" -lt 7 ]; do
         local idx=$(( i % flen ))
         printf "\r\033[K${AQUA}[:°] ANALYZING NETWORK...${NC} [ ${colours[$idx]}${frames[$idx]}${NC} ] "
@@ -216,13 +206,10 @@ custom_network_setup() {
     printf "\r\033[K${AQUA}[:°] ANALYZING NETWORK... [ DONE ]${NC}\n"
     tput cnorm 2>/dev/null
     wait 2>/dev/null
-
-    local net_works=0
-    local f
+    local net_works=0 f
     for f in "$TMP"/net_*.done; do
         [ -f "$f" ] && [ "$(cat "$f")" != "000" ] && net_works=1
     done
-
     if [ "$scan_mode" = "1" ] || [ "$scan_mode" = "2" ]; then
         if [ $net_works -eq 1 ]; then
             echo "${YELLOW}[!] WARNING INTERNET DETECTED MANUALLY ENTER CARRIER NETWORK${NC}"
@@ -249,7 +236,6 @@ custom_network_setup() {
             [ "$_RST_CARRIER" = "Unknown" ] && ask_manual_carrier
         fi
     fi
-
     rm -rf "$TMP"
     echo "${GREEN}[+] Network Carrier: $_RST_CARRIER${NC}"
 }
@@ -266,9 +252,7 @@ ask_manual_carrier() {
 }
 
 resolve_host() {
-    local domain="$1"
-    local dns_mode="$2"
-    local ip=""
+    local domain="$1" dns_mode="$2" ip=""
     local resolvers=()
     local modes=$(echo "$dns_mode" | grep -o . | sort -u)
     for m in $modes; do
@@ -288,38 +272,40 @@ resolve_host() {
     return 1
 }
 
-# ─── Save paused state (sets global _SAVED_STATE_FILE) ────
 save_scan_state() {
+    local wd="${RST_WORK_DIR:-$RAT_SAVED}"
     local rnd=$(printf "%04d" $((RANDOM % 10000)))
-    local sc=$(echo "$CARRIER" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
-    _SAVED_STATE_FILE="$WORK_DIR/PAUSED_${sc}_$(date +%d_%Y%m%d_%H%M)_${rnd}.txt"
+    local sc=$(echo "${CARRIER:-UNKNOWN}" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
+    _SAVED_STATE_FILE="$wd/PAUSED_${sc}_$(date +%d_%Y%m%d_%H%M)_${rnd}.txt"
     local elapsed_sec=0
     [ -n "$start_time" ] && [ "$start_time" -gt 0 ] 2>/dev/null && elapsed_sec=$(( $(date +%s) - start_time ))
     cat > "$_SAVED_STATE_FILE" << EOF
 {
-    "target_file": "$TARGET_FILE",
+    "target_file": "${TARGET_FILE:-}",
     "total_scanned": ${total_scanned:-0},
     "total": ${TOTAL:-0},
     "timeout": ${TIMEOUT:-10},
     "batch": ${BATCH:-100},
     "threads": ${THREADS:-100},
-    "carrier": "$CARRIER",
-    "work_dir": "$WORK_DIR",
-    "tag": "$TAG",
+    "carrier": "${CARRIER:-UNKNOWN}",
+    "work_dir": "$wd",
+    "tag": "${TAG:-}",
     "zero_rated": ${zero_rated:-0},
     "blocked": ${blocked:-0},
     "billed": ${billed:-0},
     "bugs": ${bugs:-0},
     "pshd": ${pshd:-0},
     "elapsed_sec": $elapsed_sec,
-    "deadlock_mode": "$DEADLOCK_MODE",
-    "scan_mode": "$SCAN_MODE",
-    "dns_mode": "$DNS_MODE",
-    "batch_enabled": "$BATCH_ENABLED"
+    "deadlock_mode": "${DEADLOCK_MODE:-1}",
+    "scan_mode": "${SCAN_MODE:-2}",
+    "dns_mode": "${DNS_MODE:-1}",
+    "batch_enabled": "${BATCH_ENABLED:-y}"
 }
 EOF
-    local remaining_file="${_SAVED_STATE_FILE%.txt}_hosts.txt"
-    tail -n +$(( ${total_scanned:-0} + 1 )) "$TARGET_FILE" > "$remaining_file" 2>/dev/null
+    if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
+        local remaining_file="${_SAVED_STATE_FILE%.txt}_hosts.txt"
+        tail -n +$(( ${total_scanned:-0} + 1 )) "$TARGET_FILE" > "$remaining_file" 2>/dev/null
+    fi
 }
 
 list_paused_scans() {
