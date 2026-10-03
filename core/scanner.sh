@@ -2,7 +2,7 @@
 #  SCANNING ENGINES
 # =========================================================
 
-ANIM_FRAMES=("R@ - - -" "- R@ - -" "- - R@ -" "- - - R@" "- - R@ -" "- R@ - -")
+ANIM_FRAMES=("R@ - - - -" "- R@ - - -" "- - R@ - -" "- - - R@ -" "- - - - R@" "- - - R@ -")
 ANIM_COLOURS=("$YELLOW" "$CYAN" "$CYAN" "$CYAN" "$YELLOW" "$CYAN")
 ANIM_LEN=${#ANIM_FRAMES[@]}
 
@@ -30,7 +30,7 @@ check_host_zero() {
         [ -n "$http_code" ] && [ "$http_code" != "000" ] && code="$http_code"
         if [ "$code" != "000" ]; then
             if [ "$code" = "200" ] || [ "$code" = "201" ] || [ "$code" = "204" ]; then echo "ZERO_RATED|$code"; return
-            elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ]; then echo "BILLED|$code"; return
+            elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "308" ]; then echo "BILLED|$code"; return
             elif [[ "$code" =~ ^[4-5][0-9][0-9]$ ]]; then echo "BUG|$code"; return
             else echo "BLOCKED|$code"; return; fi
         fi
@@ -38,7 +38,7 @@ check_host_zero() {
         [ -n "$http_code" ] && [ "$http_code" != "000" ] && code="$http_code"
         if [ "$code" != "000" ]; then
             if [ "$code" = "200" ] || [ "$code" = "201" ] || [ "$code" = "204" ]; then echo "ZERO_RATED|$code"; return
-            elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ]; then echo "BILLED|$code"; return
+            elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "308" ]; then echo "BILLED|$code"; return
             elif [[ "$code" =~ ^[4-5][0-9][0-9]$ ]]; then echo "BUG|$code"; return
             else echo "BLOCKED|$code"; return; fi
         fi
@@ -53,7 +53,7 @@ check_host_zero() {
     done
     if [ "$code" != "000" ]; then
         if [ "$code" = "200" ] || [ "$code" = "201" ] || [ "$code" = "204" ]; then echo "ZERO_RATED|$code"
-        elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ]; then echo "BILLED|$code"
+        elif [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "308" ]; then echo "BILLED|$code"
         elif [[ "$code" =~ ^[4-5][0-9][0-9]$ ]]; then echo "BUG|$code"
         else echo "BLOCKED|$code"; fi
     else echo "BLOCKED|000"; fi
@@ -139,7 +139,7 @@ show_full_summary() {
     echo "${GREEN}Zero-Rated Found  : $zr 🟢${NC}"
     echo "${RED}Hidden Bugs       : $bug 🔥${NC}"
     echo "${RED}Blocked/Unknown   : $blk ❌${NC}"
-    echo "${RED}Billed/Redirect   : $bil 🚫${NC}"
+    echo "${RED}Billed/Redirect${NC}"   : $bil 🚫
     echo "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo "${AQUA}[!] Log Saved To:${NC} $logfile"
     echo "${GREEN}[!] Clean Zero-Rated List Saved To:${NC} $zrfile"
