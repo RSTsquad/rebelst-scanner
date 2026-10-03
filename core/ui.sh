@@ -16,14 +16,14 @@ show_banner() {
     echo "${PURPLE}║${AQUA}        ██████╔╝█████╗  ██████╔╝█████╗  ██║     ███████╗   ██║     ${PURPLE}║${NC}"
     echo "${PURPLE}║${AQUA}        ██╔══██╗██╔══╝  ██╔══██╗██╔══╝  ██║     ╚════██║   ██║     ${PURPLE}║${NC}"
     echo "${PURPLE}║${AQUA}        ██║  ██║███████╗██████╔╝███████╗███████╗███████║   ██║     ${PURPLE}║${NC}"
-    echo "${PURPLE}║${AQUA}        ╚═╝  ╚═╝╚══════╝╚═════╝ ╚══════╝╚══════╝╚══════╝   ╚═╝     ${PURPLE}║${NC}"
-    echo "${PURPLE}║${AQUA}                          Tech${BLUE}sys${AQUA}tem: ${BLUE}R@${AQUA}t${PURPLE}|${GOLD}V3.1${NC}                     ${PURPLE}║${NC}"
+    echo "${PURPLE}║${AQUA}        ╚═╝  ╚═╝╚══════╝╚═════╝ ╚══════╝╚══════╝╚══════╝   ╚═╝      ${PURPLE}║${NC}"
+    echo "${PURPLE}║${AQUA}                          Tech${BLUE}sys${AQUA}tem: ${BLUE}R@${AQUA}t${PURPLE}|${GOLD}V3.2${NC}                     ${PURPLE}║${NC}"
     echo "${PURPLE}║${AQUA}      ${YELLOW}•${AQUA}REBEL SQUAD TERRORIST ${YELLOW}R@${RED}- ZERO-RATED SCANNER TOOL${AQUA}${YELLOW}•${NC}         ${PURPLE}║${NC}"
     echo "${PURPLE}╠═══════════════════════════════════════════════════════════════════╣${NC}"
 }
 
 show_header_with_user() {
-    local USERNAME="$1" DEVICE_ID="$2" EXPIRY_FMT="$3"
+    local USERNAME="$1" DEVICE_ID="$2" EXPIRY_FMT="$3"                                    ${PURPLE}║${NC}"    
     show_banner
     echo "${PURPLE}║${NC} ${WHITE}[USER]     :${NC} ${GREEN}VERIFIED (WELCOME, $USERNAME)${NC}"
     echo "${PURPLE}║${NC} ${WHITE}[HW-ID]    :${NC} ${GREEN}$DEVICE_ID${NC}"
